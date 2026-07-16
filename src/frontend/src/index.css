@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom Sleek Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0b0f19;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3b82f6;
+}
+
+/* Performance Rendering Containment Isolation */
+.workspace-container {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 100px auto 1200px;
+}
+
+@supports not (content-visibility: auto) {
+  .workspace-container {
+    contain: layout style paint;
+  }
+}
