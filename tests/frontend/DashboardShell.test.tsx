@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { ProjectProvider, Project } from '../../src/frontend/src/context/ProjectContext';
 import { DashboardShell } from '../../src/frontend/src/components/DashboardShell';
 
@@ -70,5 +70,91 @@ describe('DashboardShell Integration & Component Tests', () => {
     const banner = screen.getByRole('alert');
     expect(banner).toBeInTheDocument();
     expect(banner).toHaveTextContent(/profile "non-existent" is missing or deleted/);
+  });
+
+  test('should render and interact with the Business DNA scanner tab', () => {
+    jest.useFakeTimers();
+    render(
+      <ProjectProvider initialProjects={MOCK_PROJECTS}>
+        <DashboardShell />
+      </ProjectProvider>
+    );
+
+    const dnaTabLink = screen.getByRole('link', { name: /Business DNA/i });
+    fireEvent.click(dnaTabLink);
+
+    const urlInput = screen.getByPlaceholderText('https://yourbrand.com');
+    fireEvent.change(urlInput, { target: { value: 'https://nike.com' } });
+
+    const scanButton = screen.getByRole('button', { name: /Scan DNA/i });
+    fireEvent.click(scanButton);
+
+    expect(screen.getByText(/Analyzing typography/i)).toBeInTheDocument();
+
+    act(() => {
+      jest.advanceTimersByTime(1000);
+    });
+
+    expect(screen.getByText('NIKE')).toBeInTheDocument();
+    expect(screen.getByText('Modern, Professional, and Innovative')).toBeInTheDocument();
+
+    jest.useRealTimers();
+  });
+
+  test('should render and interact with the AI Photoshoot tab', () => {
+    jest.useFakeTimers();
+    render(
+      <ProjectProvider initialProjects={MOCK_PROJECTS}>
+        <DashboardShell />
+      </ProjectProvider>
+    );
+
+    const photoshootLink = screen.getByRole('link', { name: /AI Photoshoot/i });
+    fireEvent.click(photoshootLink);
+
+    const inUseButton = screen.getByRole('button', { name: 'In Use' });
+    fireEvent.click(inUseButton);
+
+    const promptInput = screen.getByPlaceholderText(/e.g. Set product on a clean wood table/i);
+    fireEvent.change(promptInput, { target: { value: 'on a luxury leather stand' } });
+
+    const renderButton = screen.getByRole('button', { name: /Render Product Scene/i });
+    fireEvent.click(renderButton);
+
+    expect(screen.getByText(/Rendering product scene/i)).toBeInTheDocument();
+
+    act(() => {
+      jest.advanceTimersByTime(1200);
+    });
+
+    expect(screen.getByText('Render Successful')).toBeInTheDocument();
+    expect(screen.getByText(/Generated a high-fidelity image using the "In Use" theme/i)).toBeInTheDocument();
+
+    jest.useRealTimers();
+  });
+
+  test('should render and interact with the Campaign Creator tab', () => {
+    render(
+      <ProjectProvider initialProjects={MOCK_PROJECTS}>
+        <DashboardShell />
+      </ProjectProvider>
+    );
+
+    const campaignLink = screen.getByRole('link', { name: /Campaign Creator/i });
+    fireEvent.click(campaignLink);
+
+    const selectCopyType = screen.getByRole('combobox', { name: '' });
+    // In our header we also have a combobox (select) for project switching,
+    // so we can get the specific combobox in the campaign page by target-id if needed, or by selecting options.
+    // Let's change selectCopyType selector to be more specific or use screen.getAllByRole('combobox')
+    const comboboxes = screen.getAllByRole('combobox');
+    // The second combobox is the campaign type selector
+    const campaignSelect = comboboxes[1] as HTMLSelectElement;
+    fireEvent.change(campaignSelect, { target: { value: 'sale' } });
+
+    const generateButton = screen.getByRole('button', { name: /Generate Copy/i });
+    fireEvent.click(generateButton);
+
+    expect(screen.getByText('Level Up Your Infrastructure - 40% Off')).toBeInTheDocument();
   });
 });
