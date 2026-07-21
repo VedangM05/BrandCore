@@ -46,6 +46,10 @@ CREATE TABLE IF NOT EXISTS crawl_results (
     font_pairings VARCHAR(255),
     tone TEXT,
     dom_hierarchy JSONB,
+    tagline VARCHAR(255),
+    mission TEXT,
+    audience TEXT,
+    value_proposition TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -59,3 +63,7 @@ ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS colors VARCHAR(50)[];
 ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS font_pairings VARCHAR(255);
 ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS tone TEXT;
 ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS dom_hierarchy JSONB;
+ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS tagline VARCHAR(255);
+ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS mission TEXT;
+ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS audience TEXT;
+ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS value_proposition TEXT;
