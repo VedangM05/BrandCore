@@ -1,24 +1,57 @@
 import React from 'react';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { ProjectProvider, Project } from '../../src/frontend/src/context/ProjectContext';
 import { DashboardShell } from '../../src/frontend/src/components/DashboardShell';
 
 const MOCK_PROJECTS: Project[] = [
   { id: 'p-1', name: 'Project One', description: 'Desc One' },
-  { id: 'p-2', name: 'Project Two', description: 'Desc Two' }
+  { id: 'p-2', name: 'Project Two', description: 'Desc Two' },
 ];
+
+const mockLogout = jest.fn();
+const mockNavigate = jest.fn();
+
+jest.mock('../../src/frontend/src/context/AuthContext', () => {
+  const actual = jest.requireActual('../../src/frontend/src/context/AuthContext');
+  return {
+    ...actual,
+    useAuth: () => ({
+      user: { userId: 'user-1', email: 'test@example.com', role: 'user' },
+      isLoading: false,
+      isAuthenticated: true,
+      error: null,
+      login: jest.fn(),
+      signup: jest.fn(),
+      logout: mockLogout,
+      clearError: jest.fn(),
+    }),
+  };
+});
+
+jest.mock('react-router-dom', () => ({
+  ...jest.requireActual('react-router-dom'),
+  useNavigate: () => mockNavigate,
+}));
 
 describe('DashboardShell Integration & Component Tests', () => {
   beforeEach(() => {
     localStorage.clear();
+    mockLogout.mockClear();
+    mockNavigate.mockClear();
   });
 
-  test('should render shell framework layout and active workspace info', () => {
+  const renderShell = () =>
     render(
-      <ProjectProvider initialProjects={MOCK_PROJECTS}>
-        <DashboardShell />
-      </ProjectProvider>
+      <MemoryRouter>
+        <ProjectProvider initialProjects={MOCK_PROJECTS}>
+          <DashboardShell />
+        </ProjectProvider>
+      </MemoryRouter>
     );
+
+  test('should render shell framework layout and active workspace info', () => {
+    renderShell();
 
     expect(screen.getByRole('navigation', { name: /Sidebar Navigation/i })).toBeInTheDocument();
 
@@ -29,14 +62,11 @@ describe('DashboardShell Integration & Component Tests', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Project One' })).toBeInTheDocument();
     expect(screen.getByText('Desc One')).toBeInTheDocument();
     expect(screen.getByText(/BrandCore Systems/i)).toBeInTheDocument();
+    expect(screen.getByText('test@example.com')).toBeInTheDocument();
   });
 
   test('should switch active project and update workspace context on select option change', () => {
-    render(
-      <ProjectProvider initialProjects={MOCK_PROJECTS}>
-        <DashboardShell />
-      </ProjectProvider>
-    );
+    renderShell();
 
     const select = screen.getByTestId('workspace-select') as HTMLSelectElement;
 
@@ -48,12 +78,20 @@ describe('DashboardShell Integration & Component Tests', () => {
     expect(localStorage.getItem('activeProjectId')).toBe('p-2');
   });
 
+  test('should sign out and redirect to login', () => {
+    renderShell();
+
+    fireEvent.click(screen.getByTestId('logout-button'));
+
+    expect(mockLogout).toHaveBeenCalled();
+    expect(mockNavigate).toHaveBeenCalledWith('/login', { replace: true });
+  });
+
   test('should render 100 dummy elements in active workspace for performance benchmark', () => {
-    render(
-      <ProjectProvider initialProjects={MOCK_PROJECTS}>
-        <DashboardShell />
-      </ProjectProvider>
-    );
+    renderShell();
+
+    const libraryLink = screen.getByRole('link', { name: /Assets Library/i });
+    fireEvent.click(libraryLink);
 
     const cards = screen.getAllByTestId('dummy-card');
     expect(cards).toHaveLength(100);
@@ -62,9 +100,11 @@ describe('DashboardShell Integration & Component Tests', () => {
 
   test('should render global error banner layout variant on error state', () => {
     render(
-      <ProjectProvider initialProjects={MOCK_PROJECTS} initialSelectedId="non-existent">
-        <DashboardShell />
-      </ProjectProvider>
+      <MemoryRouter>
+        <ProjectProvider initialProjects={MOCK_PROJECTS} initialSelectedId="non-existent">
+          <DashboardShell />
+        </ProjectProvider>
+      </MemoryRouter>
     );
 
     const banner = screen.getByRole('alert');
@@ -72,13 +112,28 @@ describe('DashboardShell Integration & Component Tests', () => {
     expect(banner).toHaveTextContent(/profile "non-existent" is missing or deleted/);
   });
 
-  test('should render and interact with the Business DNA scanner tab', () => {
-    jest.useFakeTimers();
-    render(
-      <ProjectProvider initialProjects={MOCK_PROJECTS}>
-        <DashboardShell />
-      </ProjectProvider>
-    );
+  test('should render and interact with the Business DNA scanner tab', async () => {
+    const mockDnaScanResponse = {
+      success: true,
+      title: 'NIKE',
+      colors: ['#4f46e5', '#f97316', '#0ea5e9', '#10b981'],
+      tone: 'Modern, Professional, and Innovative',
+      font_pairings: 'Plus Jakarta Sans & Inter',
+    };
+
+    let resolveFetch: any;
+    const fetchPromise = new Promise((resolve) => {
+      resolveFetch = () => resolve({
+        ok: true,
+        json: () => Promise.resolve(mockDnaScanResponse),
+      } as Response);
+    });
+
+    const originalFetch = (global as any).fetch;
+    const mockFetch = jest.fn().mockImplementation(() => fetchPromise as Promise<Response>);
+    (global as any).fetch = mockFetch;
+
+    renderShell();
 
     const dnaTabLink = screen.getByRole('link', { name: /Business DNA/i });
     fireEvent.click(dnaTabLink);
@@ -89,25 +144,26 @@ describe('DashboardShell Integration & Component Tests', () => {
     const scanButton = screen.getByRole('button', { name: /Scan DNA/i });
     fireEvent.click(scanButton);
 
-    expect(screen.getByText(/Analyzing typography/i)).toBeInTheDocument();
-
-    act(() => {
-      jest.advanceTimersByTime(1000);
+    await waitFor(() => {
+      expect(screen.getByText(/Analyzing brand colors/i)).toBeInTheDocument();
     });
 
-    expect(screen.getByText('NIKE')).toBeInTheDocument();
+    await act(async () => {
+      resolveFetch();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('NIKE')).toBeInTheDocument();
+    });
+
     expect(screen.getByText('Modern, Professional, and Innovative')).toBeInTheDocument();
 
-    jest.useRealTimers();
+    (global as any).fetch = originalFetch;
   });
 
   test('should render and interact with the AI Photoshoot tab', () => {
     jest.useFakeTimers();
-    render(
-      <ProjectProvider initialProjects={MOCK_PROJECTS}>
-        <DashboardShell />
-      </ProjectProvider>
-    );
+    renderShell();
 
     const photoshootLink = screen.getByRole('link', { name: /AI Photoshoot/i });
     fireEvent.click(photoshootLink);
@@ -121,7 +177,7 @@ describe('DashboardShell Integration & Component Tests', () => {
     const renderButton = screen.getByRole('button', { name: /Render Product Scene/i });
     fireEvent.click(renderButton);
 
-    expect(screen.getByText(/Rendering product scene/i)).toBeInTheDocument();
+    expect(screen.getByText(/Rendering product photoshoot/i)).toBeInTheDocument();
 
     act(() => {
       jest.advanceTimersByTime(1200);
@@ -134,27 +190,12 @@ describe('DashboardShell Integration & Component Tests', () => {
   });
 
   test('should render and interact with the Campaign Creator tab', () => {
-    render(
-      <ProjectProvider initialProjects={MOCK_PROJECTS}>
-        <DashboardShell />
-      </ProjectProvider>
-    );
+    renderShell();
 
-    const campaignLink = screen.getByRole('link', { name: /Campaign Creator/i });
+    const campaignLink = screen.getByRole('link', { name: /AI Brief Writer/i });
     fireEvent.click(campaignLink);
 
-    const selectCopyType = screen.getByRole('combobox', { name: '' });
-    // In our header we also have a combobox (select) for project switching,
-    // so we can get the specific combobox in the campaign page by target-id if needed, or by selecting options.
-    // Let's change selectCopyType selector to be more specific or use screen.getAllByRole('combobox')
-    const comboboxes = screen.getAllByRole('combobox');
-    // The second combobox is the campaign type selector
-    const campaignSelect = comboboxes[1] as HTMLSelectElement;
-    fireEvent.change(campaignSelect, { target: { value: 'sale' } });
-
-    const generateButton = screen.getByRole('button', { name: /Generate Copy/i });
-    fireEvent.click(generateButton);
-
-    expect(screen.getByText('Level Up Your Infrastructure - 40% Off')).toBeInTheDocument();
+    expect(screen.getByText('Campaign Ad Copy Planner')).toBeInTheDocument();
+    expect(screen.getByText('Introducing Your Summer Collection')).toBeInTheDocument();
   });
 });

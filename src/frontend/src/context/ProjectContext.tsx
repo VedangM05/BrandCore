@@ -62,7 +62,6 @@ export const ProjectProvider: React.FC<{
 
   const selectProject = (id: string) => {
     setError(null);
-    const start = performance.now();
     const found = projects.find((p) => p.id === id);
     if (found) {
       setActiveProject(found);
@@ -70,10 +69,6 @@ export const ProjectProvider: React.FC<{
         localStorage.setItem('activeProjectId', id);
       } catch (e) {
         // Fallback for isolated test envs without localStorage
-      }
-      const duration = performance.now() - start;
-      if (duration > 50) {
-        console.warn(`[ProjectContext] Workspace state transition took ${duration.toFixed(2)}ms`);
       }
     } else {
       setError(`Cannot switch workspace: project profile "${id}" does not exist.`);

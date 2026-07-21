@@ -14,10 +14,15 @@ export async function handleRegister(req: Request, res: Response): Promise<void>
       userId,
     });
   } catch (error: any) {
-    if (error.message === 'Email already registered') {
-      res.status(409).json({ error: error.message });
+    if (
+      error.message === 'Email already registered' ||
+      error.code === '23505' ||
+      error.message?.includes('unique constraint')
+    ) {
+      res.status(409).json({ error: 'Email already registered' });
       return;
     }
+    console.error('[Auth] Register failed:', error.message);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 }
@@ -36,6 +41,7 @@ export async function handleLogin(req: Request, res: Response): Promise<void> {
       res.status(401).json({ error: error.message });
       return;
     }
+    console.error('[Auth] Login failed:', error.message);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 }

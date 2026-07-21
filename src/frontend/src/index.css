@@ -2,23 +2,74 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom Sleek Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #0b0f19;
-}
-::-webkit-scrollbar-thumb {
-  background: #1e293b;
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #3b82f6;
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-brand-bg text-brand-text;
+  }
+
+  ::selection {
+    @apply bg-brand-primary/20 text-brand-text;
+  }
 }
 
-/* Performance Rendering Containment Isolation */
+@layer components {
+  .panel {
+    @apply bg-brand-surface border border-brand-border rounded-2xl shadow-soft;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 bg-brand-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-brand-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 bg-white text-brand-text border border-brand-border px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-brand-elevated transition-colors;
+  }
+
+  .input-field {
+    @apply w-full bg-white border border-brand-border rounded-xl px-4 py-2.5 text-sm text-brand-text placeholder:text-brand-muted focus:outline-none focus:ring-2 focus:ring-brand-primary/25 focus:border-brand-primary transition-shadow;
+  }
+
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:bg-brand-sidebar-hover hover:text-white transition-colors;
+  }
+
+  .nav-item-active {
+    @apply bg-brand-sidebar-active text-white;
+  }
+
+  .stat-card {
+    @apply panel p-5 flex flex-col gap-1;
+  }
+
+  .tag {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-semibold uppercase tracking-wide;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
 .workspace-container {
   content-visibility: auto;
   contain-intrinsic-size: auto 100px auto 1200px;
