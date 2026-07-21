@@ -52,7 +52,7 @@ export async function cleanDatabase() {
   if (process.env.NODE_ENV !== 'test') {
     throw new Error('cleanDatabase can only be called in test mode!');
   }
-  await query('TRUNCATE users, refresh_tokens RESTART IDENTITY CASCADE;');
+  await query('TRUNCATE users, refresh_tokens, crawl_jobs, crawl_results RESTART IDENTITY CASCADE;');
 }
 
 /**

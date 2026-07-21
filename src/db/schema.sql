@@ -21,3 +21,41 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token);
+
+-- Database schema for BrandCore Crawler module
+CREATE TABLE IF NOT EXISTS crawl_jobs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    domain VARCHAR(255) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'pending', -- 'pending', 'processing', 'completed', 'failed'
+    pages_crawled INTEGER DEFAULT 0,
+    error_reason TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS crawl_results (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    job_id UUID REFERENCES crawl_jobs(id) ON DELETE CASCADE,
+    domain VARCHAR(255) NOT NULL,
+    url VARCHAR(2048) UNIQUE NOT NULL,
+    title VARCHAR(255),
+    meta_description TEXT,
+    markdown_content TEXT,
+    logo_url VARCHAR(2048),
+    colors VARCHAR(50)[],
+    font_pairings VARCHAR(255),
+    tone TEXT,
+    dom_hierarchy JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_crawl_jobs_domain ON crawl_jobs(domain);
+CREATE INDEX IF NOT EXISTS idx_crawl_results_domain ON crawl_results(domain);
+CREATE INDEX IF NOT EXISTS idx_crawl_results_url ON crawl_results(url);
+
+-- Alter crawl_results to add DNA columns if they do not exist
+ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS logo_url VARCHAR(2048);
+ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS colors VARCHAR(50)[];
+ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS font_pairings VARCHAR(255);
+ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS tone TEXT;
+ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS dom_hierarchy JSONB;

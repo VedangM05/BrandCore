@@ -8,6 +8,7 @@
     "start": "node dist/server.js",
     "dev": "tsx src/server.ts",
     "dev:client": "vite",
+    "dev:all": "npm run dev & npm run dev:client",
     "build:client": "vite build",
     "test": "jest --runInBand --detectOpenHandles --forceExit",
     "test:coverage": "jest --coverage --runInBand --detectOpenHandles --forceExit",
@@ -27,11 +28,14 @@
     "argon2": "^0.40.3",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "ioredis": "^5.11.1",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.12.0",
+    "playwright": "^1.61.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.26.0"
+    "react-router-dom": "^6.26.0",
+    "robots-parser": "^3.0.1"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.4.8",
