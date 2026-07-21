@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import { handleRegister, handleLogin, handleRefresh } from './controllers/auth.controller';
 import { handleDnaScan } from './controllers/dna.controller';
+import { handleCreativeGenerate } from './controllers/creative.controller';
 
 const app = express();
 
@@ -13,6 +14,9 @@ app.post('/api/auth/refresh', handleRefresh);
 
 // DNA endpoints
 app.post('/api/dna/scan', handleDnaScan);
+
+// Creative Generation endpoints
+app.post('/api/creative/generate', handleCreativeGenerate);
 
 // Standard status health endpoint
 app.get('/health', (req, res) => {

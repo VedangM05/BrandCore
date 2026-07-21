@@ -67,3 +67,20 @@ ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS tagline VARCHAR(255);
 ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS mission TEXT;
 ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS audience TEXT;
 ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS value_proposition TEXT;
+
+CREATE TABLE IF NOT EXISTS campaigns (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    brand_dna_id UUID REFERENCES crawl_results(id) ON DELETE CASCADE,
+    prompt TEXT NOT NULL,
+    headline VARCHAR(255),
+    body_text TEXT,
+    social_copy TEXT,
+    image_prompt TEXT,
+    visual_style VARCHAR(100),
+    qa_score INTEGER,
+    qa_feedback TEXT,
+    attempts INTEGER,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_campaigns_brand_dna ON campaigns(brand_dna_id);
