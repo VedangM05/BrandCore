@@ -104,7 +104,7 @@ export const PhotoshootView: React.FC<PhotoshootViewProps> = ({
             <h3 className="text-sm font-bold text-brand-text">Preview Generation</h3>
             {generatedPhoto && (
               <span className="tag bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
-                Render Successful
+                Status: Complete
               </span>
             )}
           </div>
