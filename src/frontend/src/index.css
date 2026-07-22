@@ -3,71 +3,180 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --bg-main: #0b0f17;
+    --surface-main: #131b2e;
+    --surface-elevated: #1e293b;
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --primary-indigo: #6366f1;
+    --accent-cyan: #06b6d4;
+  }
+
   html,
   body,
   #root {
     height: 100%;
-  }
-
-  body {
-    @apply bg-brand-bg text-brand-text;
+    background-color: #0b0f17;
+    color: #f8fafc;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 
   ::selection {
-    @apply bg-brand-primary/20 text-brand-text;
+    background-color: rgba(99, 102, 241, 0.35);
+    color: #ffffff;
   }
 }
 
 @layer components {
   .panel {
-    @apply bg-brand-surface border border-brand-border rounded-2xl shadow-soft;
+    background-color: #131b2e;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 1rem;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .panel-glass {
+    background: rgba(19, 27, 46, 0.75);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 bg-brand-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-brand-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    color: #ffffff;
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.35);
+    transition: all 0.2s ease;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+    box-shadow: 0 6px 20px 0 rgba(99, 102, 241, 0.5);
+    transform: translateY(-1px);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 bg-white text-brand-text border border-brand-border px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-brand-elevated transition-colors;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background-color: #1e293b;
+    color: #f1f5f9;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+
+  .btn-secondary:hover {
+    background-color: #334155;
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+    transform: translateY(-1px);
   }
 
   .input-field {
-    @apply w-full bg-white border border-brand-border rounded-xl px-4 py-2.5 text-sm text-brand-text placeholder:text-brand-muted focus:outline-none focus:ring-2 focus:ring-brand-primary/25 focus:border-brand-primary transition-shadow;
+    width: 100%;
+    background-color: #0f172a;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.75rem;
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+    color: #f8fafc;
+    transition: all 0.2s ease;
+  }
+
+  .input-field::placeholder {
+    color: #64748b;
+  }
+
+  .input-field:focus {
+    outline: none;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+    background-color: #1e293b;
   }
 
   .nav-item {
-    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:bg-brand-sidebar-hover hover:text-white transition-colors;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.875rem;
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #94a3b8;
+    transition: all 0.2s ease;
+  }
+
+  .nav-item:hover {
+    background-color: rgba(255, 255, 255, 0.06);
+    color: #ffffff;
   }
 
   .nav-item-active {
-    @apply bg-brand-sidebar-active text-white;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(99, 102, 241, 0.08) 100%);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    color: #ffffff;
+    font-weight: 600;
   }
 
   .stat-card {
-    @apply panel p-5 flex flex-col gap-1;
+    background-color: #131b2e;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 1rem;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
   }
 
   .tag {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-semibold uppercase tracking-wide;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.625rem;
+    border-radius: 0.375rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 }
 
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #0b0f17;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #334155;
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #475569;
 }
 
 .workspace-container {
@@ -75,8 +184,11 @@
   contain-intrinsic-size: auto 100px auto 1200px;
 }
 
-@supports not (content-visibility: auto) {
-  .workspace-container {
-    contain: layout style paint;
-  }
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2.5s ease-in-out infinite;
 }

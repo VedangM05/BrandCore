@@ -24,7 +24,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
   userEmail,
   onLogout,
 }) => (
-  <header className="h-16 bg-brand-surface border-b border-brand-border flex items-center justify-between px-6 shrink-0">
+  <header className="h-16 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between px-6 shrink-0 backdrop-blur-md">
     <div className="flex items-center gap-4 min-w-0">
       <label htmlFor="workspace-select" className="sr-only">
         Select workspace
@@ -32,7 +32,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
       <select
         id="workspace-select"
         data-testid="workspace-select"
-        className="input-field w-auto min-w-[200px] max-w-[280px] py-2 font-semibold text-sm cursor-pointer"
+        className="input-field w-auto min-w-[200px] max-w-[280px] py-2 font-semibold text-sm cursor-pointer bg-slate-950 border-slate-700 text-white"
         value={activeProject?.id || ''}
         onChange={(e) => onSelectProject(e.target.value)}
       >
@@ -43,20 +43,26 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
         ))}
       </select>
 
-      <div className="hidden md:flex items-center gap-2 bg-brand-elevated border border-brand-border rounded-xl px-3 py-2 w-72">
-        <SearchIcon className="w-4 h-4 text-brand-muted shrink-0" />
+      <div className="hidden md:flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 w-72">
+        <SearchIcon className="w-4 h-4 text-slate-400 shrink-0" />
         <input
           type="search"
           placeholder="Search campaigns, assets..."
-          className="bg-transparent text-sm w-full focus:outline-none placeholder:text-brand-muted"
+          className="bg-transparent text-sm w-full focus:outline-none text-white placeholder:text-slate-500"
           aria-label="Search"
         />
       </div>
     </div>
 
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-4">
+      {/* Telemetry Status Indicator */}
+      <div className="hidden lg:flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-semibold text-emerald-400">
+        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+        <span>Telemetry Live &middot; OpenTelemetry Active</span>
+      </div>
+
       {userEmail && (
-        <span className="hidden sm:block text-xs font-medium text-brand-muted max-w-[180px] truncate">
+        <span className="hidden sm:block text-xs font-medium text-slate-300 max-w-[180px] truncate">
           {userEmail}
         </span>
       )}
@@ -64,14 +70,14 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
         <button
           type="button"
           onClick={onLogout}
-          className="btn-secondary py-2 text-xs"
+          className="btn-secondary py-1.5 px-3.5 text-xs"
           data-testid="logout-button"
         >
           Sign out
         </button>
       )}
       <div
-        className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-primary to-indigo-400 flex items-center justify-center text-white text-xs font-bold"
+        className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center text-white text-xs font-bold shadow-md shadow-indigo-500/20 ring-2 ring-indigo-500/30"
         title={userEmail}
         aria-label={userEmail ? `Signed in as ${userEmail}` : 'User avatar'}
       >

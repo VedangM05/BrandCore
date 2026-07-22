@@ -31,16 +31,16 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => (
-  <aside className="w-64 bg-brand-sidebar flex flex-col shrink-0" aria-label="Sidebar Navigation">
-    <div className="h-16 flex items-center gap-3 px-5 border-b border-white/10">
-      <LogoMark className="w-8 h-8 text-brand-primary shrink-0" />
+  <aside className="w-64 bg-slate-950 border-r border-slate-800 flex flex-col shrink-0" aria-label="Sidebar Navigation">
+    <div className="h-16 flex items-center gap-3 px-5 border-b border-slate-800">
+      <LogoMark className="w-8 h-8 text-indigo-500 shrink-0" />
       <div>
-        <div className="text-white font-bold text-sm leading-tight">BrandCore</div>
-        <div className="text-slate-400 text-[11px]">Creative workspace</div>
+        <div className="text-white font-bold text-sm leading-tight tracking-wide">BrandCore</div>
+        <div className="text-slate-400 text-[11px] font-medium">Enterprise Intelligence</div>
       </div>
     </div>
 
-    <nav className="flex-1 px-3 py-5 space-y-1" aria-label="Sidebar Navigation">
+    <nav className="flex-1 px-3 py-5 space-y-1.5" aria-label="Sidebar Navigation">
       {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
         <a
           key={id}
@@ -53,16 +53,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => (
           aria-label={label}
           aria-current={activeTab === id ? 'page' : undefined}
         >
-          <Icon className="w-5 h-5 shrink-0 opacity-80" />
-          <span>{label}</span>
+          <Icon className={`w-5 h-5 shrink-0 transition-colors ${activeTab === id ? 'text-indigo-400 opacity-100' : 'opacity-70'}`} />
+          <span className="font-medium text-sm">{label}</span>
         </a>
       ))}
     </nav>
 
-    <div className="p-4 border-t border-white/10">
-      <div className="rounded-xl bg-white/5 px-3 py-3">
-        <p className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">Workspace</p>
-        <p className="text-xs text-slate-400 mt-1 leading-relaxed">Ship campaigns faster with guided brand tools.</p>
+    <div className="p-4 border-t border-slate-800">
+      <div className="rounded-xl bg-slate-900 border border-slate-800/80 px-3.5 py-3">
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Agent Workspace</p>
+          <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+        </div>
+        <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+          Powered by Gemini 2.5 & LangGraph Agents.
+        </p>
       </div>
     </div>
   </aside>
