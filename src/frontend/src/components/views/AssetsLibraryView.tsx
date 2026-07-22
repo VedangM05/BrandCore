@@ -57,19 +57,18 @@ export const AssetsLibraryView: React.FC = () => {
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-indigo-400">Asset manager</p>
-          <h2 className="text-2xl font-bold text-white mt-1">Your Generated Brand Assets</h2>
-          <p className="text-sm text-slate-400 mt-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">Asset manager</p>
+          <h2 className="text-2xl font-bold text-slate-900 mt-1">Your Generated Brand Assets</h2>
+          <p className="text-sm text-slate-600 mt-1">
             Browse, download, and manage all generated marketing campaigns, ad copy, and media visuals.
           </p>
         </div>
-        <span className="text-xs font-medium text-slate-300 bg-slate-900 border border-slate-800 px-3.5 py-2 rounded-xl shrink-0 flex items-center gap-2 shadow-sm">
+        <span className="text-xs font-medium text-slate-700 bg-white border border-slate-200 px-3.5 py-2 rounded-xl shrink-0 flex items-center gap-2 shadow-sm">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           Rendering 100 elements in gallery
         </span>
       </div>
 
-      {/* Filter and Search Bar */}
       <div className="panel p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex flex-wrap gap-2">
           {['All', ...STATUSES].map((status) => (
@@ -79,8 +78,8 @@ export const AssetsLibraryView: React.FC = () => {
               onClick={() => setFilter(status)}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 filter === status
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                  : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'bg-white text-slate-600 border border-slate-300 hover:text-slate-900 hover:border-slate-400'
               }`}
             >
               {status}
@@ -105,7 +104,6 @@ export const AssetsLibraryView: React.FC = () => {
         </div>
       )}
 
-      {/* Gallery Cards Grid (Preserving 100 dummy cards for test compatibility) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {Array.from({ length: 100 }, (_, idx) => {
           const type = ASSET_TYPES[idx % ASSET_TYPES.length];
@@ -128,7 +126,7 @@ export const AssetsLibraryView: React.FC = () => {
             <div
               key={idx}
               onClick={() => setSelectedAsset(assetObj)}
-              className={`panel p-4 hover:border-indigo-500/50 hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between min-h-[130px] group ${
+              className={`panel p-4 hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between min-h-[130px] group ${
                 dimmed ? 'opacity-30 pointer-events-none' : ''
               }`}
               data-testid="dummy-card"
@@ -136,21 +134,21 @@ export const AssetsLibraryView: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-slate-500 font-mono">Asset #{idx + 1}</span>
-                  <span className="text-[10px] text-indigo-400 font-semibold group-hover:underline">
+                  <span className="text-[10px] text-indigo-600 font-semibold group-hover:underline">
                     View
                   </span>
                 </div>
-                <div className="text-sm font-semibold text-white mt-1.5 line-clamp-1 group-hover:text-indigo-300 transition-colors">
+                <div className="text-sm font-semibold text-slate-900 mt-1.5 line-clamp-1 group-hover:text-indigo-600 transition-colors">
                   {type}
                 </div>
               </div>
 
-              <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-800/60">
+              <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-100">
                 <span
                   className={`text-[10px] px-2 py-0.5 rounded-md font-semibold ${
                     isApproved
-                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-amber-50 text-amber-700 border border-amber-200'
                   }`}
                 >
                   {status}
@@ -162,16 +160,15 @@ export const AssetsLibraryView: React.FC = () => {
         })}
       </div>
 
-      {/* Asset Preview Modal */}
       {selectedAsset && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4">
-          <div className="panel p-6 max-w-md w-full space-y-5 bg-slate-900 border-slate-700 shadow-2xl relative">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="font-bold text-white text-base">Asset Detail Preview</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="panel p-6 max-w-md w-full space-y-5 bg-white border-slate-200 shadow-xl relative">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <h3 className="font-bold text-slate-900 text-base">Asset Detail Preview</h3>
               <button
                 type="button"
                 onClick={() => setSelectedAsset(null)}
-                className="text-slate-400 hover:text-white text-sm font-bold"
+                className="text-slate-400 hover:text-slate-900 text-sm font-bold"
               >
                 ✕
               </button>
@@ -179,24 +176,24 @@ export const AssetsLibraryView: React.FC = () => {
 
             <div className="space-y-3 text-sm">
               <div>
-                <span className="text-xs text-slate-400 font-semibold block uppercase">Asset Name</span>
-                <p className="text-white font-medium mt-0.5">{selectedAsset.name}</p>
+                <span className="text-xs text-slate-500 font-semibold block uppercase">Asset Name</span>
+                <p className="text-slate-900 font-medium mt-0.5">{selectedAsset.name}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <span className="text-xs text-slate-400 font-semibold block uppercase">Type</span>
-                  <p className="text-indigo-400 font-semibold mt-0.5">{selectedAsset.type}</p>
+                  <span className="text-xs text-slate-500 font-semibold block uppercase">Type</span>
+                  <p className="text-indigo-600 font-semibold mt-0.5">{selectedAsset.type}</p>
                 </div>
                 <div>
-                  <span className="text-xs text-slate-400 font-semibold block uppercase">Mime Type</span>
-                  <p className="text-slate-300 font-mono text-xs mt-0.5">{selectedAsset.mime_type}</p>
+                  <span className="text-xs text-slate-500 font-semibold block uppercase">Mime Type</span>
+                  <p className="text-slate-700 font-mono text-xs mt-0.5">{selectedAsset.mime_type}</p>
                 </div>
               </div>
 
               <div>
-                <span className="text-xs text-slate-400 font-semibold block uppercase">Storage Path</span>
-                <p className="text-slate-400 font-mono text-xs mt-0.5 truncate bg-slate-950 p-2 rounded border border-slate-800">
+                <span className="text-xs text-slate-500 font-semibold block uppercase">Storage Path</span>
+                <p className="text-slate-600 font-mono text-xs mt-0.5 truncate bg-slate-50 p-2 rounded border border-slate-200">
                   {selectedAsset.file_path}
                 </p>
               </div>

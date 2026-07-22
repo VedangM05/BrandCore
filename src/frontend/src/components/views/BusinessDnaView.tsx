@@ -34,9 +34,9 @@ export const BusinessDnaView: React.FC<BusinessDnaViewProps> = ({
   return (
     <div className="space-y-8">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-indigo-400">Brand foundation</p>
-        <h2 className="text-2xl font-bold text-white mt-1">Business DNA Matrix</h2>
-        <p className="text-sm text-slate-400 mt-1 max-w-2xl">
+        <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">Brand foundation</p>
+        <h2 className="text-2xl font-bold text-slate-900 mt-1">Business DNA Matrix</h2>
+        <p className="text-sm text-slate-600 mt-1 max-w-2xl">
           Import your web presence to synthesize an AI brand positioning profile — colors, typography, voice guidelines, and positioning matrix for every campaign.
         </p>
       </div>
@@ -44,12 +44,12 @@ export const BusinessDnaView: React.FC<BusinessDnaViewProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <div className="lg:col-span-3 panel p-6 space-y-6">
           <div className="flex items-start gap-4">
-            <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-sm font-bold shrink-0 shadow-lg shadow-indigo-500/20">
+            <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-sm font-bold shrink-0 shadow-md">
               1
             </div>
             <div>
-              <h3 className="font-bold text-white text-base">Connect Website or Domain</h3>
-              <p className="text-sm text-slate-400 mt-1">
+              <h3 className="font-bold text-slate-900 text-base">Connect Website or Domain</h3>
+              <p className="text-sm text-slate-600 mt-1">
                 Our vision & DOM analysis pipeline fetches raw markup, isolates dominant colors, and extracts tone signals.
               </p>
             </div>
@@ -70,29 +70,29 @@ export const BusinessDnaView: React.FC<BusinessDnaViewProps> = ({
           </form>
 
           {isScanning && (
-            <div className="py-10 border-t border-slate-800">
+            <div className="py-10 border-t border-slate-200">
               <Spinner label="Analyzing brand colors, fonts, and brand voice..." />
             </div>
           )}
         </div>
 
-        <div className="lg:col-span-2 panel p-6 bg-slate-900/60">
-          <h3 className="font-bold text-white mb-4 text-base">Extracted Intelligence Matrix</h3>
-          <ul className="space-y-3.5 text-sm text-slate-300">
+        <div className="lg:col-span-2 panel p-6 bg-slate-50 border-slate-200">
+          <h3 className="font-bold text-slate-900 mb-4 text-base">Extracted Intelligence Matrix</h3>
+          <ul className="space-y-3.5 text-sm text-slate-700">
             <li className="flex items-center gap-3">
-              <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0" />
+              <span className="w-2 h-2 rounded-full bg-indigo-600 shrink-0" />
               Primary & Accent Color Swatches
             </li>
             <li className="flex items-center gap-3">
-              <span className="w-2 h-2 rounded-full bg-cyan-500 shrink-0" />
+              <span className="w-2 h-2 rounded-full bg-sky-600 shrink-0" />
               Typography Hierarchy & Font Pairings
             </li>
             <li className="flex items-center gap-3">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+              <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0" />
               Tone of Voice Descriptors & Mission
             </li>
             <li className="flex items-center gap-3">
-              <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+              <span className="w-2 h-2 rounded-full bg-amber-600 shrink-0" />
               Target Audience & Value Proposition
             </li>
           </ul>
@@ -102,7 +102,7 @@ export const BusinessDnaView: React.FC<BusinessDnaViewProps> = ({
       {results && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-white">Synthesized Profile for {results.brandName}</h3>
+            <h3 className="text-lg font-bold text-slate-900">Synthesized Profile for {results.brandName}</h3>
             <button
               type="button"
               onClick={handleApplyDna}
@@ -115,15 +115,15 @@ export const BusinessDnaView: React.FC<BusinessDnaViewProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Style Kit Card */}
             <div className="panel p-6 space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h4 className="font-bold text-white">Visual Style Kit</h4>
-                <span className="tag bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h4 className="font-bold text-slate-900">Visual Style Kit</h4>
+                <span className="tag bg-indigo-50 text-indigo-700 border border-indigo-200">
                   Extracted
                 </span>
               </div>
 
               <div>
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-3">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 block mb-3">
                   Color Palette (Click Hex to Copy)
                 </span>
                 <div className="grid grid-cols-4 gap-3">
@@ -135,16 +135,16 @@ export const BusinessDnaView: React.FC<BusinessDnaViewProps> = ({
                       className="group text-center focus:outline-none"
                     >
                       <div
-                        className="w-full h-14 rounded-xl border border-white/10 shadow-md group-hover:scale-105 transition-transform relative flex items-center justify-center"
+                        className="w-full h-14 rounded-xl border border-slate-300 shadow-sm group-hover:scale-105 transition-transform relative flex items-center justify-center"
                         style={{ backgroundColor: color }}
                       >
                         {copiedHex === color && (
-                          <span className="text-[10px] font-bold bg-black/75 text-white px-2 py-0.5 rounded shadow">
+                          <span className="text-[10px] font-bold bg-slate-900 text-white px-2 py-0.5 rounded shadow">
                             Copied!
                           </span>
                         )}
                       </div>
-                      <span className="text-[11px] font-mono text-slate-400 group-hover:text-white mt-1.5 block">
+                      <span className="text-[11px] font-mono text-slate-600 group-hover:text-slate-900 mt-1.5 block">
                         {color}
                       </span>
                     </button>
@@ -153,15 +153,15 @@ export const BusinessDnaView: React.FC<BusinessDnaViewProps> = ({
               </div>
 
               <div className="pt-2">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 block mb-2">
                   Typography Pairing
                 </span>
-                <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-bold text-white">{results.font}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">Heading & Body Font System</p>
+                    <p className="text-sm font-bold text-slate-900">{results.font}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Heading & Body Font System</p>
                   </div>
-                  <span className="text-xs text-indigo-400 font-semibold bg-indigo-500/10 px-2.5 py-1 rounded-md border border-indigo-500/20">
+                  <span className="text-xs text-indigo-700 font-semibold bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200">
                     Optimal Contrast
                   </span>
                 </div>
@@ -170,31 +170,31 @@ export const BusinessDnaView: React.FC<BusinessDnaViewProps> = ({
 
             {/* Voice & Identity Profile Card */}
             <div className="panel p-6 space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h4 className="font-bold text-white">Voice & Brand Identity</h4>
-                <span className="tag bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h4 className="font-bold text-slate-900">Voice & Brand Identity</h4>
+                <span className="tag bg-emerald-50 text-emerald-700 border border-emerald-200">
                   Validated
                 </span>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 block mb-1">
                     Tone of Voice
                   </span>
-                  <p className="text-sm text-slate-200 bg-slate-900 p-3.5 rounded-xl border border-slate-800 leading-relaxed font-medium">
+                  <p className="text-sm text-slate-800 bg-slate-50 p-3.5 rounded-xl border border-slate-200 leading-relaxed font-medium">
                     {results.tone}
                   </p>
                 </div>
 
                 <div>
-                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 block mb-1">
                     Detected Brand Identity
                   </span>
-                  <div className="p-3.5 rounded-xl bg-gradient-to-r from-indigo-950/40 to-slate-900 border border-indigo-500/20 flex items-center justify-between">
+                  <div className="p-3.5 rounded-xl bg-indigo-50/50 border border-indigo-100 flex items-center justify-between">
                     <div>
-                      <p className="text-lg font-bold text-indigo-400">{results.brandName}</p>
-                      <p className="text-xs text-slate-400">Positioning matrix synced across workspace</p>
+                      <p className="text-lg font-bold text-indigo-900">{results.brandName}</p>
+                      <p className="text-xs text-slate-600">Positioning matrix synced across workspace</p>
                     </div>
                     <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
                   </div>

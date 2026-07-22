@@ -28,7 +28,6 @@ export const BriefWriterView: React.FC<BriefWriterViewProps> = ({ initialPrompt 
     setAddedToCampaign(false);
 
     try {
-      // Call backend Creative Generation API
       const res = await fetch('/api/creative/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -49,7 +48,6 @@ export const BriefWriterView: React.FC<BriefWriterViewProps> = ({ initialPrompt 
           channel: selectedChannel
         });
       } else {
-        // Local synthesis fallback
         setBriefResult({
           headline: `Dynamic Launch: ${prompt}`,
           bodyText: `Discover how we align with your goals for "${prompt}". Our brand is defined by delivering excellence, premium quality, and customer satisfaction.`,
@@ -59,7 +57,6 @@ export const BriefWriterView: React.FC<BriefWriterViewProps> = ({ initialPrompt 
         });
       }
     } catch (err) {
-      // Graceful offline fallback
       setBriefResult({
         headline: `Campaign Strategy: ${prompt}`,
         bodyText: `Discover how we align with your goals for "${prompt}". Crafted to deliver maximum engagement and brand consistency.`,
@@ -86,9 +83,9 @@ export const BriefWriterView: React.FC<BriefWriterViewProps> = ({ initialPrompt 
   return (
     <div className="space-y-8">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-brand-primary">Copy studio</p>
-        <h2 className="text-2xl font-bold text-brand-text mt-1">Campaign Ad Copy Planner</h2>
-        <p className="text-sm text-brand-muted mt-1 max-w-2xl">
+        <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">Copy studio</p>
+        <h2 className="text-2xl font-bold text-slate-900 mt-1">Campaign Ad Copy Planner</h2>
+        <p className="text-sm text-slate-600 mt-1 max-w-2xl">
           Draft channel-specific messaging that stays aligned with your brand voice profile.
         </p>
       </div>
@@ -97,7 +94,7 @@ export const BriefWriterView: React.FC<BriefWriterViewProps> = ({ initialPrompt 
       <div className="panel p-6 space-y-4">
         <form onSubmit={handleWriteBrief} className="space-y-4">
           <div>
-            <label htmlFor="brief-prompt-input" className="text-sm font-bold text-brand-text block mb-2">
+            <label htmlFor="brief-prompt-input" className="text-sm font-bold text-slate-900 block mb-2">
               Campaign Brief Prompt
             </label>
             <div className="flex gap-3">
@@ -128,7 +125,7 @@ export const BriefWriterView: React.FC<BriefWriterViewProps> = ({ initialPrompt 
           </div>
 
           <div>
-            <span className="text-xs font-semibold text-brand-muted uppercase tracking-wider block mb-2">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-2">
               Target Distribution Channels
             </span>
             <div className="flex flex-wrap gap-2">
@@ -139,8 +136,8 @@ export const BriefWriterView: React.FC<BriefWriterViewProps> = ({ initialPrompt 
                   onClick={() => setSelectedChannel(channel)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
                     selectedChannel === channel
-                      ? 'bg-brand-primary text-white border-brand-primary shadow-sm'
-                      : 'bg-white text-brand-muted border-brand-border hover:border-brand-primary/40'
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                      : 'bg-white text-slate-600 border-slate-300 hover:border-indigo-400 hover:text-slate-900'
                   }`}
                 >
                   {channel}
@@ -163,25 +160,25 @@ export const BriefWriterView: React.FC<BriefWriterViewProps> = ({ initialPrompt 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <article className="panel p-6 space-y-4 relative">
             <div className="flex items-center justify-between">
-              <span className="tag bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20">
+              <span className="tag bg-indigo-50 text-indigo-700 border border-indigo-200">
                 {briefResult.channel}
               </span>
               <div className="flex items-center gap-3">
-                <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
                   QA Score: {briefResult.qaScore}%
                 </span>
                 <button
                   type="button"
                   onClick={() => handleWriteBrief()}
-                  className="text-xs font-semibold text-brand-primary hover:underline"
+                  className="text-xs font-semibold text-indigo-600 hover:underline"
                 >
                   Regenerate
                 </button>
               </div>
             </div>
 
-            <h3 className="text-xl font-bold text-brand-text leading-snug">{briefResult.headline}</h3>
-            <p className="text-sm text-brand-muted leading-relaxed">{briefResult.bodyText}</p>
+            <h3 className="text-xl font-bold text-slate-900 leading-snug">{briefResult.headline}</h3>
+            <p className="text-sm text-slate-600 leading-relaxed">{briefResult.bodyText}</p>
 
             <div className="pt-2 flex flex-wrap gap-2">
               <button
@@ -203,14 +200,14 @@ export const BriefWriterView: React.FC<BriefWriterViewProps> = ({ initialPrompt 
 
           <article className="panel p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <span className="tag bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-600/20">Twitter/X</span>
-              <span className="text-xs text-brand-muted">{briefResult.socialCopy.length} / 280 chars</span>
+              <span className="tag bg-orange-50 text-orange-700 border border-orange-200">Twitter/X</span>
+              <span className="text-xs text-slate-500 font-mono">{briefResult.socialCopy.length} / 280 chars</span>
             </div>
-            <p className="text-sm text-brand-text leading-relaxed font-medium">
+            <p className="text-sm text-slate-800 leading-relaxed font-medium">
               &ldquo;{briefResult.socialCopy}&rdquo;
             </p>
-            <div className="rounded-xl bg-brand-elevated border border-brand-border p-4 space-y-3">
-              <p className="text-xs font-semibold text-brand-muted uppercase tracking-wider mb-2">Also generate for</p>
+            <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Also generate for</p>
               <div className="flex flex-wrap gap-2">
                 {['LinkedIn', 'Email subject', 'Meta ad'].map((channel) => (
                   <button
@@ -220,7 +217,7 @@ export const BriefWriterView: React.FC<BriefWriterViewProps> = ({ initialPrompt 
                       setSelectedChannel(channel);
                       handleWriteBrief();
                     }}
-                    className="px-3 py-1.5 rounded-lg bg-white border border-brand-border text-xs font-semibold text-brand-muted hover:text-brand-text hover:border-brand-primary/30 transition-colors"
+                    className="px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:border-indigo-400 transition-colors"
                   >
                     {channel}
                   </button>
@@ -229,7 +226,7 @@ export const BriefWriterView: React.FC<BriefWriterViewProps> = ({ initialPrompt 
               <button
                 type="button"
                 onClick={() => handleCopy(briefResult.socialCopy, 'social')}
-                className="text-xs text-brand-primary font-semibold hover:underline block pt-1"
+                className="text-xs text-indigo-600 font-semibold hover:underline block pt-1"
               >
                 {copiedField === 'social' ? 'Copied Social Post!' : 'Copy Social Post'}
               </button>

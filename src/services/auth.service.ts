@@ -14,7 +14,6 @@ const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'refresh_secret';
 const JWT_ACCESS_EXPIRES_IN = process.env.JWT_ACCESS_EXPIRES_IN || '15m';
 const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 
-// Hashing parameters that will be calibrated to achieve 50-250ms hashing latency.
 const ARGON2_CONFIG = {
   memoryCost: parseInt(process.env.ARGON2_MEMORY_COST || '65536', 10),
   timeCost: parseInt(process.env.ARGON2_TIME_COST || '3', 10),
@@ -22,10 +21,9 @@ const ARGON2_CONFIG = {
   type: argon2.argon2id
 };
 
-// In-memory user profile cache to prevent DB query roundtrip bottlenecks under concurrent load
 export const userCache = new Map<string, { user: any; cachedAt: number }>();
 export const pendingUserQueries = new Map<string, Promise<any>>();
-const CACHE_TTL_MS = 5000; // 5-second TTL
+const CACHE_TTL_MS = 5000;
 
 export interface TokenPayload {
   userId: string;
@@ -38,9 +36,6 @@ export interface AuthTokens {
   refreshToken: string;
 }
 
-/**
- * Service function helpers to execute code within OpenTelemetry spans
- */
 async function traceSpan<T>(name: string, fn: (span: Span) => Promise<T>): Promise<T> {
   return tracer.startActiveSpan(name, async (span) => {
     try {
@@ -60,9 +55,6 @@ async function traceSpan<T>(name: string, fn: (span: Span) => Promise<T>): Promi
   });
 }
 
-/**
- * Hash a password using argon2 with configured parameters.
- */
 export async function hashPassword(password: string): Promise<string> {
   return traceSpan('hashPassword', async (span) => {
     span.setAttribute('argon2.memoryCost', ARGON2_CONFIG.memoryCost);
@@ -78,32 +70,29 @@ export async function hashPassword(password: string): Promise<string> {
   });
 }
 
-/**
- * Register a new user with hashed password.
- */
 export async function registerUser(email: string, password: string, role: string = 'user'): Promise<string> {
   return traceSpan('registerUser', async (span) => {
-    span.setAttribute('user.email', email);
+    const normalizedEmail = (email || '').toLowerCase().trim();
+    span.setAttribute('user.email', normalizedEmail);
     span.setAttribute('user.role', role);
 
-    if (!email || !password) {
+    if (!normalizedEmail || !password) {
       throw new Error('Email and password are required');
     }
 
-    // Check if user already exists
-    const existing = await query('SELECT id FROM users WHERE email = $1', [email]);
+    const existing = await query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [normalizedEmail]);
     if (existing.rows.length > 0) {
       throw new Error('Email already registered');
     }
 
-    userCache.delete(email);
-    pendingUserQueries.delete(email);
+    userCache.delete(normalizedEmail);
+    pendingUserQueries.delete(normalizedEmail);
 
     const hashedPassword = await hashPassword(password);
 
     const result = await query(
       'INSERT INTO users (email, password_hash, role) VALUES ($1, $2, $3) RETURNING id',
-      [email, hashedPassword, role]
+      [normalizedEmail, hashedPassword, role]
     );
 
     const userId = result.rows[0].id;
@@ -112,17 +101,11 @@ export async function registerUser(email: string, password: string, role: string
   });
 }
 
-/**
- * Helper to generate access and refresh tokens for a user
- */
 async function generateTokens(userId: string, email: string, role: string, parentTokenId?: string, client?: any): Promise<AuthTokens> {
   const dbExecutor = client || { query };
-  
-  // Create a refresh token record in the database
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 7); // 7 days matching standard config
+  expiresAt.setDate(expiresAt.getDate() + 7);
 
-  // Generate UUID and secret locally in Node.js
   const tokenId = crypto.randomUUID();
   const tokenSecretString = crypto.randomBytes(24).toString('hex');
 
@@ -136,11 +119,9 @@ async function generateTokens(userId: string, email: string, role: string, paren
     );
   }
 
-  // If a transaction client is passed, we must await it to ensure database transaction integrity
   if (client) {
     await insertPromise;
   } else {
-    // Otherwise, execute the query asynchronously in the background so it doesn't block the response
     insertPromise.catch((err: any) => {
       console.error('[DB] Asynchronous token insert failed:', err);
     });
@@ -152,7 +133,6 @@ async function generateTokens(userId: string, email: string, role: string, paren
     { expiresIn: JWT_ACCESS_EXPIRES_IN as any }
   );
 
-  // The refresh token payload stores the token record UUID ID and the random secret string matching db
   const refreshToken = jwt.sign(
     { userId, tokenId, tokenSecret: tokenSecretString },
     JWT_REFRESH_SECRET,
@@ -162,45 +142,45 @@ async function generateTokens(userId: string, email: string, role: string, paren
   return { accessToken, refreshToken };
 }
 
-/**
- * Authenticate user credentials and issue fresh tokens.
- */
 export async function authenticateUser(email: string, password: string): Promise<AuthTokens> {
   return traceSpan('authenticateUser', async (span) => {
-    span.setAttribute('user.email', email);
+    const normalizedEmail = (email || '').toLowerCase().trim();
+    span.setAttribute('user.email', normalizedEmail);
 
     let user: any;
     if (process.env.MOCK_DB_FOR_LOAD_TEST === 'true') {
       user = {
         id: 'db000000-0000-0000-0000-000000000000',
-        email,
+        email: normalizedEmail,
         password_hash: '$argon2id$v=19$m=2048,t=2,p=1$UOXeXODnBzEwU1cNNREMQg$yfKqKOrGdieJhuIenhpMho1I2CVIu2tpMVX24aLGteA',
         role: 'user'
       };
     } else {
-      const cached = userCache.get(email);
+      const cached = userCache.get(normalizedEmail);
       if (cached && (Date.now() - cached.cachedAt < CACHE_TTL_MS)) {
         user = cached.user;
       } else {
-        // Check if a query for this email is already in flight (prevents cache stampede)
-        let pendingPromise = pendingUserQueries.get(email);
+        let pendingPromise = pendingUserQueries.get(normalizedEmail);
         if (!pendingPromise) {
           pendingPromise = (async () => {
-            const userRecord = await query('SELECT id, email, password_hash, role FROM users WHERE email = $1', [email]);
+            const userRecord = await query(
+              'SELECT id, email, password_hash, role FROM users WHERE LOWER(email) = LOWER($1)',
+              [normalizedEmail]
+            );
             if (userRecord.rows.length === 0) {
               throw new Error('Invalid email or password');
             }
             const record = userRecord.rows[0];
-            userCache.set(email, { user: record, cachedAt: Date.now() });
+            userCache.set(normalizedEmail, { user: record, cachedAt: Date.now() });
             return record;
           })();
-          pendingUserQueries.set(email, pendingPromise);
+          pendingUserQueries.set(normalizedEmail, pendingPromise);
         }
         
         try {
           user = await pendingPromise;
         } finally {
-          pendingUserQueries.delete(email);
+          pendingUserQueries.delete(normalizedEmail);
         }
       }
     }
@@ -216,9 +196,6 @@ export async function authenticateUser(email: string, password: string): Promise
   });
 }
 
-/**
- * Rotate refresh tokens. Revokes used tokens and detects token reuse (theft).
- */
 export async function rotateRefreshToken(tokenStr: string): Promise<AuthTokens> {
   return traceSpan('rotateRefreshToken', async (span) => {
     let decoded: any;
@@ -236,7 +213,6 @@ export async function rotateRefreshToken(tokenStr: string): Promise<AuthTokens> 
     try {
       await client.query('BEGIN');
 
-      // Fetch the token details from database
       const tokenRes = await client.query(
         'SELECT id, user_id, token, is_revoked, expires_at FROM refresh_tokens WHERE id = $1',
         [tokenId]
@@ -248,15 +224,12 @@ export async function rotateRefreshToken(tokenStr: string): Promise<AuthTokens> 
 
       const tokenData = tokenRes.rows[0];
 
-      // Check if token has expired
       if (new Date() > new Date(tokenData.expires_at)) {
         throw new Error('Invalid or expired refresh token');
       }
 
-      // Detect Refresh Token Reuse (Theft Alert!)
       if (tokenData.is_revoked) {
         span.setAttribute('token.reuse_detected', true);
-        // Revoke all refresh tokens for this user immediately!
         await client.query(
           'UPDATE refresh_tokens SET is_revoked = TRUE WHERE user_id = $1',
           [userId]
@@ -265,13 +238,11 @@ export async function rotateRefreshToken(tokenStr: string): Promise<AuthTokens> 
         throw new Error('Token reuse detected. All sessions revoked.');
       }
 
-      // Mark the current token as revoked (used)
       await client.query(
         'UPDATE refresh_tokens SET is_revoked = TRUE WHERE id = $1',
         [tokenId]
       );
 
-      // Fetch user email and role for token payloads
       const userRes = await client.query(
         'SELECT email, role FROM users WHERE id = $1',
         [userId]
@@ -282,8 +253,6 @@ export async function rotateRefreshToken(tokenStr: string): Promise<AuthTokens> 
       }
 
       const user = userRes.rows[0];
-
-      // Generate a new access and refresh token pair
       const tokens = await generateTokens(userId, user.email, user.role, tokenId, client);
 
       await client.query('COMMIT');

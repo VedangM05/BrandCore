@@ -8,27 +8,27 @@ module.exports = {
     extend: {
       colors: {
         brand: {
-          bg: '#f4f5f7',
+          bg: '#f8fafc',
           surface: '#ffffff',
-          elevated: '#fafbfc',
-          border: '#e2e5eb',
+          elevated: '#f1f5f9',
+          border: '#e2e8f0',
           muted: '#64748b',
           text: '#0f172a',
           primary: '#4f46e5',
           'primary-hover': '#4338ca',
-          accent: '#f97316',
-          'accent-soft': '#fff7ed',
-          sidebar: '#111827',
-          'sidebar-hover': '#1f2937',
-          'sidebar-active': '#312e81',
+          accent: '#0284c7',
+          'accent-soft': '#f0f9ff',
+          sidebar: '#0f172a',
+          'sidebar-hover': '#1e293b',
+          'sidebar-active': '#4f46e5',
         },
       },
       fontFamily: {
-        sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+        sans: ['"Inter"', '"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        soft: '0 1px 3px rgba(15, 23, 42, 0.06), 0 4px 12px rgba(15, 23, 42, 0.04)',
-        panel: '0 8px 30px rgba(15, 23, 42, 0.08)',
+        soft: '0 1px 3px 0 rgba(15, 23, 42, 0.05), 0 1px 2px -1px rgba(15, 23, 42, 0.05)',
+        panel: '0 4px 6px -1px rgba(15, 23, 42, 0.05), 0 2px 4px -2px rgba(15, 23, 42, 0.05)',
       },
       borderRadius: {
         xl: '0.875rem',

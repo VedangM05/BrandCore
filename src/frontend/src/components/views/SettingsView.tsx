@@ -16,27 +16,26 @@ export const SettingsView: React.FC = () => {
   return (
     <div className="space-y-8 max-w-4xl">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-indigo-400">Configuration</p>
-        <h2 className="text-2xl font-bold text-white mt-1">Workspace Settings</h2>
-        <p className="text-sm text-slate-400 mt-1">
+        <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">Configuration</p>
+        <h2 className="text-2xl font-bold text-slate-900 mt-1">Workspace Settings</h2>
+        <p className="text-sm text-slate-600 mt-1">
           Manage workspace defaults, AI provider integrations, export behaviors, and team notifications.
         </p>
       </div>
 
       <form onSubmit={handleSaveSettings} className="space-y-6">
-        {/* Brand & AI Defaults Section */}
         <section className="panel p-6 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
             <div>
-              <h3 className="text-base font-bold text-white">Brand & AI Defaults</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Configure default generation presets for campaigns.</p>
+              <h3 className="text-base font-bold text-slate-900">Brand & AI Defaults</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Configure default generation presets for campaigns.</p>
             </div>
-            <span className="tag bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Preset</span>
+            <span className="tag bg-indigo-50 text-indigo-700 border border-indigo-200">Preset</span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-semibold text-slate-300 block mb-2">Default Aspect Ratio</label>
+              <label className="text-xs font-semibold text-slate-700 block mb-2">Default Aspect Ratio</label>
               <select
                 value={defaultAspect}
                 onChange={(e) => setDefaultAspect(e.target.value)}
@@ -49,7 +48,7 @@ export const SettingsView: React.FC = () => {
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-slate-300 block mb-2">Default Brand Tone</label>
+              <label className="text-xs font-semibold text-slate-700 block mb-2">Default Brand Tone</label>
               <input
                 type="text"
                 value={defaultTone}
@@ -60,63 +59,61 @@ export const SettingsView: React.FC = () => {
           </div>
         </section>
 
-        {/* AI Provider Status */}
         <section className="panel p-6 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
             <div>
-              <h3 className="text-base font-bold text-white">AI Provider Integrations</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Gemini 2.5 Flash API Key and LangGraph Agent Engine status.</p>
+              <h3 className="text-base font-bold text-slate-900">AI Provider Integrations</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Gemini 2.5 Flash API Key and LangGraph Agent Engine status.</p>
             </div>
-            <span className="tag bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="tag bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               Active
             </span>
           </div>
 
-          <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
             <div className="space-y-1">
-              <p className="text-sm font-bold text-white">Google Gemini API Key</p>
-              <p className="text-xs text-slate-400 font-mono">GEMINI_API_KEY &middot; Set in environment (`.env`)</p>
+              <p className="text-sm font-bold text-slate-900">Google Gemini API Key</p>
+              <p className="text-xs text-slate-600 font-mono">GEMINI_API_KEY &middot; Set in environment (`.env`)</p>
             </div>
-            <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20">
+            <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-200">
               Connected
             </span>
           </div>
         </section>
 
-        {/* Notifications & Export Behaviors */}
         <section className="panel p-6 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
             <div>
-              <h3 className="text-base font-bold text-white">Notifications & Delivery</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Control export delivery alerts and background task notifications.</p>
+              <h3 className="text-base font-bold text-slate-900">Notifications & Delivery</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Control export delivery alerts and background task notifications.</p>
             </div>
           </div>
 
           <div className="space-y-3">
-            <label className="flex items-center justify-between p-3.5 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer">
+            <label className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer">
               <div>
-                <p className="text-sm font-semibold text-white">Auto-persist Generated Renders</p>
-                <p className="text-xs text-slate-400">Automatically save AI Photoshoot renders to Asset Library</p>
+                <p className="text-sm font-semibold text-slate-900">Auto-persist Generated Renders</p>
+                <p className="text-xs text-slate-600">Automatically save AI Photoshoot renders to Asset Library</p>
               </div>
               <input
                 type="checkbox"
                 checked={autoExport}
                 onChange={(e) => setAutoExport(e.target.checked)}
-                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-700 bg-slate-800"
+                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 bg-white"
               />
             </label>
 
-            <label className="flex items-center justify-between p-3.5 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer">
+            <label className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer">
               <div>
-                <p className="text-sm font-semibold text-white">Campaign Email Digest</p>
-                <p className="text-xs text-slate-400">Receive summary reports when multi-agent QA approvals complete</p>
+                <p className="text-sm font-semibold text-slate-900">Campaign Email Digest</p>
+                <p className="text-xs text-slate-600">Receive summary reports when multi-agent QA approvals complete</p>
               </div>
               <input
                 type="checkbox"
                 checked={emailAlerts}
                 onChange={(e) => setEmailAlerts(e.target.checked)}
-                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-700 bg-slate-800"
+                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 bg-white"
               />
             </label>
           </div>
@@ -127,7 +124,7 @@ export const SettingsView: React.FC = () => {
             Save Workspace Settings
           </button>
           {savedSuccess && (
-            <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20">
+            <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
               ✓ Settings saved successfully!
             </span>
           )}
