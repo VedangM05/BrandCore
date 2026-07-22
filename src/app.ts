@@ -9,6 +9,12 @@ import {
   handleUsageReset,
   handleSetTier
 } from './controllers/cache.controller';
+import {
+  handleListAssets,
+  handleGetAsset,
+  handleCreateAsset,
+  handleDownloadAsset
+} from './controllers/asset.controller';
 import { enforceQuotaMiddleware } from './middleware/quota.middleware';
 
 const app = express();
@@ -32,6 +38,12 @@ app.post('/api/cache/store', handleCacheStore);
 app.get('/api/usage/stats', handleUsageStats);
 app.post('/api/usage/reset', handleUsageReset);
 app.post('/api/usage/tier', handleSetTier);
+
+// Asset Library & History endpoints
+app.get('/api/assets', handleListAssets);
+app.post('/api/assets', handleCreateAsset);
+app.get('/api/assets/:id', handleGetAsset);
+app.get('/api/assets/:id/download', handleDownloadAsset);
 
 // Standard status health endpoint
 app.get('/health', (req, res) => {

@@ -105,3 +105,24 @@ CREATE TABLE IF NOT EXISTS usage_logs (
 
 CREATE INDEX IF NOT EXISTS idx_usage_logs_user ON usage_logs(user_id);
 
+-- Database schema additions for Asset Library & History module
+CREATE TABLE IF NOT EXISTS assets (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    brand_dna_id UUID REFERENCES crawl_results(id) ON DELETE CASCADE,
+    campaign_id UUID REFERENCES campaigns(id) ON DELETE SET NULL,
+    name VARCHAR(255) NOT NULL,
+    type VARCHAR(50) NOT NULL, -- 'image', 'copy', 'logo', 'banner'
+    file_path VARCHAR(1024) NOT NULL,
+    mime_type VARCHAR(100) NOT NULL DEFAULT 'image/png',
+    file_size INTEGER NOT NULL DEFAULT 0,
+    tags VARCHAR(50)[],
+    meta_data JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_assets_brand_dna ON assets(brand_dna_id);
+CREATE INDEX IF NOT EXISTS idx_assets_type ON assets(type);
+CREATE INDEX IF NOT EXISTS idx_assets_tags ON assets USING GIN(tags);
+CREATE INDEX IF NOT EXISTS idx_assets_created_at ON assets(created_at);
+
+
