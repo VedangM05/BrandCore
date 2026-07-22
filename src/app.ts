@@ -15,6 +15,11 @@ import {
   handleCreateAsset,
   handleDownloadAsset
 } from './controllers/asset.controller';
+import {
+  handlePrometheusMetrics,
+  handleGrafanaDashboardData,
+  handleInjectTestFailure
+} from './controllers/observability.controller';
 import { enforceQuotaMiddleware } from './middleware/quota.middleware';
 
 const app = express();
@@ -44,6 +49,11 @@ app.get('/api/assets', handleListAssets);
 app.post('/api/assets', handleCreateAsset);
 app.get('/api/assets/:id', handleGetAsset);
 app.get('/api/assets/:id/download', handleDownloadAsset);
+
+// Observability & Telemetry endpoints
+app.get('/metrics', handlePrometheusMetrics);
+app.get('/api/observability/dashboard', handleGrafanaDashboardData);
+app.post('/api/observability/test-failure', handleInjectTestFailure);
 
 // Standard status health endpoint
 app.get('/health', (req, res) => {

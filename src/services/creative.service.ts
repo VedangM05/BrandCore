@@ -1,5 +1,6 @@
 import { trace, SpanStatusCode } from '@opentelemetry/api';
 import { query } from '../db';
+import { metricsRegistry } from './metrics.service';
 
 const tracer = trace.getTracer('brandcore-creative-pipeline');
 
@@ -47,6 +48,7 @@ export async function runCopywriterNode(
   feedbackHistory: string[]
 ): Promise<CopywriterOutput> {
   return tracer.startActiveSpan('copywriter_agent_node', async (span) => {
+    metricsRegistry.recordAgentNodeSpan('copywriter_agent_node');
     const startTime = Date.now();
     console.log(`[TIMING] [Copywriter] Node execution started at ${new Date(startTime).toISOString()}`);
     
@@ -84,6 +86,7 @@ export async function runArtDirectorNode(
   feedbackHistory: string[]
 ): Promise<ArtDirectorOutput> {
   return tracer.startActiveSpan('art_director_agent_node', async (span) => {
+    metricsRegistry.recordAgentNodeSpan('art_director_agent_node');
     const startTime = Date.now();
     console.log(`[TIMING] [Art Director] Node execution started at ${new Date(startTime).toISOString()}`);
     
@@ -120,6 +123,7 @@ export async function runQaCheckerNode(
   forceScore?: number
 ): Promise<QaEvaluation> {
   return tracer.startActiveSpan('qa_checker_node', async (span) => {
+    metricsRegistry.recordAgentNodeSpan('qa_checker_node');
     span.setAttribute('qa.attempt', attempt);
 
     let score = 85; // default passing score
@@ -152,6 +156,7 @@ export async function runBestOfNFallbackNode(
   attempts: AttemptRecord[]
 ): Promise<AttemptRecord> {
   return tracer.startActiveSpan('best_of_n_fallback_node', async (span) => {
+    metricsRegistry.recordAgentNodeSpan('best_of_n_fallback_node');
     console.log('[FALLBACK] Bounded retries exhausted. Executing Best-of-N fallback selection.');
     
     let bestIdx = 0;
