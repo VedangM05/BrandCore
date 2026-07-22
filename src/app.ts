@@ -2,6 +2,14 @@ import express, { Request, Response, NextFunction } from 'express';
 import { handleRegister, handleLogin, handleRefresh } from './controllers/auth.controller';
 import { handleDnaScan } from './controllers/dna.controller';
 import { handleCreativeGenerate } from './controllers/creative.controller';
+import {
+  handleCacheCheck,
+  handleCacheStore,
+  handleUsageStats,
+  handleUsageReset,
+  handleSetTier
+} from './controllers/cache.controller';
+import { enforceQuotaMiddleware } from './middleware/quota.middleware';
 
 const app = express();
 
@@ -13,10 +21,17 @@ app.post('/api/auth/login', handleLogin);
 app.post('/api/auth/refresh', handleRefresh);
 
 // DNA endpoints
-app.post('/api/dna/scan', handleDnaScan);
+app.post('/api/dna/scan', enforceQuotaMiddleware, handleDnaScan);
 
 // Creative Generation endpoints
-app.post('/api/creative/generate', handleCreativeGenerate);
+app.post('/api/creative/generate', enforceQuotaMiddleware, handleCreativeGenerate);
+
+// Cache & Cost Control endpoints
+app.post('/api/cache/check', handleCacheCheck);
+app.post('/api/cache/store', handleCacheStore);
+app.get('/api/usage/stats', handleUsageStats);
+app.post('/api/usage/reset', handleUsageReset);
+app.post('/api/usage/tier', handleSetTier);
 
 // Standard status health endpoint
 app.get('/health', (req, res) => {

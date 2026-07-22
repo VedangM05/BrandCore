@@ -84,3 +84,24 @@ CREATE TABLE IF NOT EXISTS campaigns (
 );
 
 CREATE INDEX IF NOT EXISTS idx_campaigns_brand_dna ON campaigns(brand_dna_id);
+
+-- Database schema additions for Caching & Cost Control module
+ALTER TABLE users ADD COLUMN IF NOT EXISTS tier VARCHAR(50) DEFAULT 'free';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS monthly_cost_limit NUMERIC(10, 2) DEFAULT 1.00;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS monthly_token_limit INTEGER DEFAULT 10000;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS current_cost_usd NUMERIC(10, 6) DEFAULT 0.000000;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS current_tokens_used INTEGER DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS usage_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    endpoint VARCHAR(255) NOT NULL,
+    tokens_used INTEGER NOT NULL DEFAULT 0,
+    cost_usd NUMERIC(10, 6) NOT NULL DEFAULT 0.000000,
+    cache_hit BOOLEAN NOT NULL DEFAULT FALSE,
+    cache_type VARCHAR(50), -- 'exact', 'semantic', or NULL
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_usage_logs_user ON usage_logs(user_id);
+
