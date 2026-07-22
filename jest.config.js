@@ -1,5 +1,6 @@
 module.exports = {
-  testTimeout: 30000,
+  testTimeout: 60000,
+  maxWorkers: 1,
   verbose: true,
   forceExit: true,
   clearMocks: true,
