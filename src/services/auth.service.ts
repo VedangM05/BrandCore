@@ -23,7 +23,6 @@ const ARGON2_CONFIG = {
 
 export const userCache = new Map<string, { user: any; cachedAt: number }>();
 export const pendingUserQueries = new Map<string, Promise<any>>();
-const CACHE_TTL_MS = 5000;
 
 export interface TokenPayload {
   userId: string;
@@ -109,22 +108,11 @@ async function generateTokens(userId: string, email: string, role: string, paren
   const tokenId = crypto.randomUUID();
   const tokenSecretString = crypto.randomBytes(24).toString('hex');
 
-  let insertPromise: Promise<any>;
-  if (process.env.MOCK_DB_FOR_LOAD_TEST === 'true') {
-    insertPromise = Promise.resolve({ rows: [] });
-  } else {
-    insertPromise = dbExecutor.query(
+  if (process.env.MOCK_DB_FOR_LOAD_TEST !== 'true') {
+    await dbExecutor.query(
       'INSERT INTO refresh_tokens (id, user_id, token, parent_id, expires_at) VALUES ($1, $2, $3, $4, $5)',
       [tokenId, userId, tokenSecretString, parentTokenId || null, expiresAt]
     );
-  }
-
-  if (client) {
-    await insertPromise;
-  } else {
-    insertPromise.catch((err: any) => {
-      console.error('[DB] Asynchronous token insert failed:', err);
-    });
   }
 
   const accessToken = jwt.sign(
@@ -147,6 +135,10 @@ export async function authenticateUser(email: string, password: string): Promise
     const normalizedEmail = (email || '').toLowerCase().trim();
     span.setAttribute('user.email', normalizedEmail);
 
+    if (!normalizedEmail || !password) {
+      throw new Error('Invalid email or password');
+    }
+
     let user: any;
     if (process.env.MOCK_DB_FOR_LOAD_TEST === 'true') {
       user = {
@@ -156,33 +148,14 @@ export async function authenticateUser(email: string, password: string): Promise
         role: 'user'
       };
     } else {
-      const cached = userCache.get(normalizedEmail);
-      if (cached && (Date.now() - cached.cachedAt < CACHE_TTL_MS)) {
-        user = cached.user;
-      } else {
-        let pendingPromise = pendingUserQueries.get(normalizedEmail);
-        if (!pendingPromise) {
-          pendingPromise = (async () => {
-            const userRecord = await query(
-              'SELECT id, email, password_hash, role FROM users WHERE LOWER(email) = LOWER($1)',
-              [normalizedEmail]
-            );
-            if (userRecord.rows.length === 0) {
-              throw new Error('Invalid email or password');
-            }
-            const record = userRecord.rows[0];
-            userCache.set(normalizedEmail, { user: record, cachedAt: Date.now() });
-            return record;
-          })();
-          pendingUserQueries.set(normalizedEmail, pendingPromise);
-        }
-        
-        try {
-          user = await pendingPromise;
-        } finally {
-          pendingUserQueries.delete(normalizedEmail);
-        }
+      const userRecord = await query(
+        'SELECT id, email, password_hash, role FROM users WHERE LOWER(email) = LOWER($1)',
+        [normalizedEmail]
+      );
+      if (userRecord.rows.length === 0) {
+        throw new Error('Invalid email or password');
       }
+      user = userRecord.rows[0];
     }
 
     span.setAttribute('user.id', user.id);
