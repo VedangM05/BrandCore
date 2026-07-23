@@ -2,6 +2,7 @@ import { Pool, PoolClient } from 'pg';
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
+import { seedDefaultUsers } from '../services/auth.service';
 
 dotenv.config();
 
@@ -14,7 +15,7 @@ if (!connectionString) {
 
 export const pool = new Pool({
   connectionString,
-  max: 50, // Max pool size suitable for load testing
+  max: 50,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
   ssl: { rejectUnauthorized: false }
@@ -24,7 +25,6 @@ export async function query(text: string, params?: any[]) {
   const start = Date.now();
   const res = await pool.query(text, params);
   const duration = Date.now() - start;
-  // Proactively log long queries if they exceed 100ms
   if (duration > 100) {
     console.warn(`[DB] Slow Query: ${text} took ${duration}ms`);
   }
@@ -36,13 +36,16 @@ export async function getClient(): Promise<PoolClient> {
 }
 
 /**
- * Initializes the database schema using the schema.sql file.
+ * Initializes the database schema using the schema.sql file and seeds default accounts.
  */
 export async function initializeDatabase() {
   const schemaPath = path.join(process.cwd(), 'src/db/schema.sql');
   const schemaSql = fs.readFileSync(schemaPath, 'utf8');
   await query(schemaSql);
   console.log('[DB] Database schema initialized/verified.');
+  if (process.env.NODE_ENV !== 'test') {
+    await seedDefaultUsers();
+  }
 }
 
 /**

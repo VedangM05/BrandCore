@@ -31,6 +31,12 @@ export const LoginPage: React.FC = () => {
     }
   };
 
+  const fillDemoAccount = (demoEmail: string) => {
+    setEmail(demoEmail);
+    setPassword('password123');
+    setError(null);
+  };
+
   return (
     <AuthLayout
       title="Sign in"
@@ -43,8 +49,11 @@ export const LoginPage: React.FC = () => {
     >
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         {error && (
-          <div role="alert" className="rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3">
-            {error}
+          <div role="alert" className="rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 space-y-1">
+            <p className="font-semibold">{error}</p>
+            <p className="text-xs text-red-600">
+              Account not found or password incorrect. You can <AuthLink to="/signup">create an account</AuthLink> or use demo credentials below.
+            </p>
           </div>
         )}
 
@@ -85,6 +94,26 @@ export const LoginPage: React.FC = () => {
         <button type="submit" disabled={submitting} className="btn-primary w-full py-3" data-testid="login-submit">
           {submitting ? 'Signing in...' : 'Sign in'}
         </button>
+
+        <div className="pt-2 border-t border-slate-200 text-center">
+          <p className="text-xs text-slate-500 mb-2 font-medium">Quick Demo Accounts</p>
+          <div className="flex justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => fillDemoAccount('vedang@brandcore.com')}
+              className="px-2.5 py-1 rounded-md bg-indigo-50 border border-indigo-200 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors"
+            >
+              vedang@brandcore.com
+            </button>
+            <button
+              type="button"
+              onClick={() => fillDemoAccount('admin@brandcore.com')}
+              className="px-2.5 py-1 rounded-md bg-slate-100 border border-slate-300 text-[11px] font-semibold text-slate-700 hover:bg-slate-200 transition-colors"
+            >
+              admin@brandcore.com
+            </button>
+          </div>
+        </div>
       </form>
     </AuthLayout>
   );

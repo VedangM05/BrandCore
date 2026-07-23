@@ -29,9 +29,14 @@ export interface AttemptRecord {
 }
 
 export interface CreativePipelineResult {
+  id: string;
   campaignId: string;
+  brandDnaId: string;
   attempts: number;
   finalSelection: AttemptRecord;
+  copy: CopywriterOutput;
+  art: ArtDirectorOutput;
+  qa: QaResult;
   estimatedCostUsd: number;
   savingsVsSequentialPercent: number;
 }
@@ -238,9 +243,14 @@ export async function executeCreativePipeline(
     span.end();
 
     return {
+      id: campaignId,
       campaignId,
+      brandDnaId,
       attempts: currentAttempt,
       finalSelection,
+      copy: finalSelection.copy,
+      art: finalSelection.art,
+      qa: finalSelection.qa,
       estimatedCostUsd,
       savingsVsSequentialPercent
     };

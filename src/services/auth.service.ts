@@ -238,3 +238,28 @@ export async function rotateRefreshToken(tokenStr: string): Promise<AuthTokens> 
     }
   });
 }
+
+export async function seedDefaultUsers(): Promise<void> {
+  const defaultAccounts = [
+    { email: 'vedang@brandcore.com', password: 'password123', role: 'admin' },
+    { email: 'admin@brandcore.com', password: 'password123', role: 'admin' },
+    { email: 'demo@brandcore.com', password: 'password123', role: 'user' },
+  ];
+
+  for (const account of defaultAccounts) {
+    try {
+      const normalizedEmail = account.email.toLowerCase().trim();
+      const existing = await query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [normalizedEmail]);
+      if (existing.rows.length === 0) {
+        const hashedPassword = await hashPassword(account.password);
+        await query(
+          'INSERT INTO users (email, password_hash, role) VALUES ($1, $2, $3)',
+          [normalizedEmail, hashedPassword, account.role]
+        );
+        console.log(`[Auth] Seeded default workspace user: ${account.email}`);
+      }
+    } catch (err: any) {
+      console.warn(`[Auth] Note on seeding ${account.email}:`, err.message);
+    }
+  }
+}
