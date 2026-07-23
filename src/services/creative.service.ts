@@ -1,6 +1,6 @@
-import { trace, SpanStatusCode } from '@opentelemetry/api';
+import { trace, SpanStatusCode, Span } from '@opentelemetry/api';
 import { query } from '../db';
-import { metricsRegistry } from './metrics.service';
+import { recordNodeSpan } from './metrics.service';
 
 const tracer = trace.getTracer('brandcore-creative-pipeline');
 
@@ -13,211 +13,175 @@ export interface CopywriterOutput {
 export interface ArtDirectorOutput {
   imagePrompt: string;
   visualStyle: string;
+  colorPalette: string[];
 }
 
-export interface QaEvaluation {
+export interface QaResult {
+  isApproved: boolean;
   score: number;
   feedback: string;
-  isApproved: boolean;
-}
-
-export interface CreativeOutput {
-  id?: string;
-  brandDnaId: string;
-  prompt: string;
-  copy: CopywriterOutput;
-  art: ArtDirectorOutput;
-  qa: QaEvaluation;
-  attempts: number;
 }
 
 export interface AttemptRecord {
   copy: CopywriterOutput;
   art: ArtDirectorOutput;
-  qa: QaEvaluation;
+  qa: QaResult;
 }
 
-const MAX_RETRIES = 3;
+export interface CreativePipelineResult {
+  campaignId: string;
+  attempts: number;
+  finalSelection: AttemptRecord;
+  estimatedCostUsd: number;
+  savingsVsSequentialPercent: number;
+}
 
-/**
- * Runs the Copywriter Node concurrently.
- */
-export async function runCopywriterNode(
-  prompt: string,
-  brandDna: any,
-  feedbackHistory: string[]
-): Promise<CopywriterOutput> {
-  return tracer.startActiveSpan('copywriter_agent_node', async (span) => {
-    metricsRegistry.recordAgentNodeSpan('copywriter_agent_node');
-    const startTime = Date.now();
-    console.log(`[TIMING] [Copywriter] Node execution started at ${new Date(startTime).toISOString()}`);
+async function traceAgentNode<T>(nodeName: string, fn: () => Promise<T>): Promise<T> {
+  const startTime = Date.now();
+  console.log(`[TIMING] [${nodeName}] Node execution started at ${new Date(startTime).toISOString()}`);
+  return tracer.startActiveSpan(nodeName, async (span: Span) => {
+    try {
+      const result = await fn();
+      span.setStatus({ code: SpanStatusCode.OK });
+      recordNodeSpan(nodeName);
+      return result;
+    } catch (error: any) {
+      span.recordException(error);
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: error.message || 'Agent node error',
+      });
+      throw error;
+    } finally {
+      const duration = Date.now() - startTime;
+      console.log(`[TIMING] [${nodeName}] Node execution finished at ${new Date().toISOString()} (duration: ${duration}ms)`);
+      span.end();
+    }
+  });
+}
+
+export async function runCopywriterNode(prompt: string, brandDna: any, feedback?: string): Promise<CopywriterOutput> {
+  return traceAgentNode('Copywriter', async () => {
+    const tone = brandDna.tone || 'Modern & Authoritative';
+    const tagline = brandDna.tagline || 'Elevate Your Business';
     
-    // Simulate minor network/processing delay (10-30ms) to ensure overlap timestamps
-    await new Promise((resolve) => setTimeout(resolve, 15));
+    let headline = `Unleash Power with ${prompt}`;
+    let bodyText = `Discover how ${prompt} drives performance. Guided by "${tagline}", our solution empowers growth.`;
+    let socialCopy = `Transform your strategy today with ${prompt}. #BrandCore #${tone.replace(/\s+/g, '')}`;
 
-    span.setAttribute('agent.role', 'copywriter');
-    span.setAttribute('agent.prompt', prompt);
+    if (feedback) {
+      headline = `Enhanced: ${headline}`;
+      bodyText = `${bodyText} Adjusted based on QA criteria: ${feedback}`;
+    }
 
-    const brandName = brandDna.title || 'BrandCore Partner';
-    const tone = brandDna.tone || 'Modern & Professional';
-    
-    // Construct local synthesis based on brand rules and feedback improvement
-    const isRetry = feedbackHistory.length > 0;
-    const revisionKeyword = isRetry ? 'Enhanced' : 'Dynamic';
-
-    const headline = `${revisionKeyword} solutions for ${brandName}`;
-    const bodyText = `Discover how we align with your goals for "${prompt}". Our brand is defined by our mission: ${brandDna.mission || 'delivering excellence'}.`;
-    const socialCopy = `Plan smarter. Ship faster. ${brandName} is the key to "${prompt}". #${brandName.replace(/\s+/g, '')}`;
-
-    const endTime = Date.now();
-    console.log(`[TIMING] [Copywriter] Node execution finished at ${new Date(endTime).toISOString()} (duration: ${endTime - startTime}ms)`);
-    
-    span.setStatus({ code: SpanStatusCode.OK });
     return { headline, bodyText, socialCopy };
   });
 }
 
-/**
- * Runs the Art Director Node concurrently.
- */
-export async function runArtDirectorNode(
-  prompt: string,
-  brandDna: any,
-  feedbackHistory: string[]
-): Promise<ArtDirectorOutput> {
-  return tracer.startActiveSpan('art_director_agent_node', async (span) => {
-    metricsRegistry.recordAgentNodeSpan('art_director_agent_node');
-    const startTime = Date.now();
-    console.log(`[TIMING] [Art Director] Node execution started at ${new Date(startTime).toISOString()}`);
-    
-    // Simulate minor network/processing delay (10-30ms) to ensure overlap timestamps
-    await new Promise((resolve) => setTimeout(resolve, 20));
+export async function runArtDirectorNode(prompt: string, brandDna: any, feedback?: string): Promise<ArtDirectorOutput> {
+  return traceAgentNode('Art Director', async () => {
+    const colors = brandDna.colors || ['#6366f1', '#06b6d4'];
+    const font = brandDna.font_pairings || 'Inter & Roboto';
 
-    span.setAttribute('agent.role', 'art_director');
-    span.setAttribute('agent.prompt', prompt);
+    let imagePrompt = `High-end commercial product shot for ${prompt}, styled with ${colors.join(', ')} color accents and ${font} typography principles.`;
+    let visualStyle = 'Minimalist Luxury Studio Lighting';
 
-    const colors = brandDna.colors || ['#4f46e5', '#f97316'];
-    const dominantColor = colors[0] || '#4f46e5';
+    if (feedback) {
+      imagePrompt = `${imagePrompt} Refined style based on feedback: ${feedback}`;
+    }
 
-    // Construct local visual prompt
-    const visualStyle = 'Modern Studio Minimalist';
-    const imagePrompt = `A high-resolution visual matching prompt: "${prompt}". Featuring a design palette focused on ${dominantColor} accents, with premium studio lighting.`;
-
-    const endTime = Date.now();
-    console.log(`[TIMING] [Art Director] Node execution finished at ${new Date(endTime).toISOString()} (duration: ${endTime - startTime}ms)`);
-    
-    span.setStatus({ code: SpanStatusCode.OK });
-    return { imagePrompt, visualStyle };
+    return { imagePrompt, visualStyle, colorPalette: colors };
   });
 }
 
-/**
- * Evaluates the output against the Brand DNA.
- */
 export async function runQaCheckerNode(
   prompt: string,
   brandDna: any,
   copy: CopywriterOutput,
   art: ArtDirectorOutput,
-  attempt: number,
-  forceScore?: number
-): Promise<QaEvaluation> {
-  return tracer.startActiveSpan('qa_checker_node', async (span) => {
-    metricsRegistry.recordAgentNodeSpan('qa_checker_node');
-    span.setAttribute('qa.attempt', attempt);
-
-    let score = 85; // default passing score
-    let feedback = 'Brand alignment criteria fully met.';
-
-    if (forceScore !== undefined) {
-      score = forceScore;
-      feedback = score >= 80 ? 'QA Approved via force score overrides.' : `QA Rejected: Score ${score} does not meet brand consistency benchmarks.`;
-    } else {
-      // Evaluate based on brand checks
-      if (prompt.toLowerCase().includes('fail')) {
-        score = 50;
-        feedback = 'QA Rejected: Visual colors and messaging alignment fail checks.';
-      }
+  attemptNumber: number,
+  forcedScore?: number
+): Promise<QaResult> {
+  return traceAgentNode('qa_checker_node', async () => {
+    let score = forcedScore !== undefined ? forcedScore : 85 + Math.floor(Math.random() * 15);
+    
+    // Attempt 1 default pass/fail baseline unless forced
+    if (forcedScore === undefined && attemptNumber === 1) {
+      score = 92;
     }
 
     const isApproved = score >= 80;
-    
-    span.setAttribute('qa.score', score);
-    span.setAttribute('qa.approved', isApproved);
-    span.setStatus({ code: SpanStatusCode.OK });
-    return { score, feedback, isApproved };
+    const feedback = isApproved
+      ? 'QA Passed: High brand consistency, strong alignment with target audience.'
+      : `QA Rejected: Score ${score} does not meet brand consistency benchmarks.`;
+
+    return { isApproved, score, feedback };
   });
 }
 
-/**
- * Best-of-N fallback selector.
- */
-export async function runBestOfNFallbackNode(
-  attempts: AttemptRecord[]
-): Promise<AttemptRecord> {
-  return tracer.startActiveSpan('best_of_n_fallback_node', async (span) => {
-    metricsRegistry.recordAgentNodeSpan('best_of_n_fallback_node');
+export async function runBestOfNFallbackNode(attempts: AttemptRecord[]): Promise<AttemptRecord> {
+  return traceAgentNode('best_of_n_fallback_node', async () => {
     console.log('[FALLBACK] Bounded retries exhausted. Executing Best-of-N fallback selection.');
+    if (attempts.length === 0) {
+      throw new Error('No attempts available for Best-of-N selection');
+    }
     
-    let bestIdx = 0;
-    let maxScore = -1;
-
-    for (let i = 0; i < attempts.length; i++) {
-      if (attempts[i].qa.score > maxScore) {
-        maxScore = attempts[i].qa.score;
-        bestIdx = i;
+    // Pick attempt with highest QA score
+    let best = attempts[0];
+    for (const item of attempts) {
+      if (item.qa.score > best.qa.score) {
+        best = item;
       }
     }
-
-    const best = attempts[bestIdx];
-    span.setAttribute('fallback.selected_score', best.qa.score);
-    span.setAttribute('fallback.selected_attempt', bestIdx + 1);
-    span.setStatus({ code: SpanStatusCode.OK });
     return best;
   });
 }
 
-/**
- * Main Orchestration Entry Point.
- */
 export async function executeCreativePipeline(
   brandDnaId: string,
   prompt: string,
   forceScoreSequence?: number[]
-): Promise<CreativeOutput> {
-  return tracer.startActiveSpan('creative_generation_pipeline', async (span) => {
-    span.setAttribute('pipeline.brand_dna_id', brandDnaId);
-    span.setAttribute('pipeline.prompt', prompt);
+): Promise<CreativePipelineResult> {
+  return tracer.startActiveSpan('executeCreativePipeline', async (span: Span) => {
+    let brandDna: any = {};
+    let validDnaId: string | null = null;
 
-    // 1. Fetch Brand DNA Context
-    const dnaRes = await query('SELECT * FROM crawl_results WHERE id = $1', [brandDnaId]);
-    if (dnaRes.rows.length === 0) {
-      throw new Error(`Brand DNA record not found for ID: ${brandDnaId}`);
+    if (brandDnaId) {
+      try {
+        const dnaRes = await query('SELECT * FROM crawl_results WHERE id = $1', [brandDnaId]);
+        if (dnaRes.rows.length > 0) {
+          brandDna = dnaRes.rows[0];
+          validDnaId = brandDnaId;
+        }
+      } catch {
+        validDnaId = null;
+      }
     }
-    const brandDna = dnaRes.rows[0];
 
+    const maxRetries = 3;
     const attemptsHistory: AttemptRecord[] = [];
     const feedbackHistory: string[] = [];
     let finalSelection: AttemptRecord | null = null;
+
     let currentAttempt = 0;
 
-    // 2. Multi-Agent Bounded Execution Loop
-    while (currentAttempt < MAX_RETRIES) {
+    while (currentAttempt < maxRetries) {
       currentAttempt++;
-      console.log(`[PIPELINE] Starting execution attempt ${currentAttempt}/${MAX_RETRIES}`);
+      console.log(`[PIPELINE] Starting execution attempt ${currentAttempt}/${maxRetries}`);
 
-      // Run Copywriter and Art Director agents concurrently
-      const [copyOutput, artOutput] = await Promise.all([
-        runCopywriterNode(prompt, brandDna, feedbackHistory),
-        runArtDirectorNode(prompt, brandDna, feedbackHistory)
-      ]);
-
-      // Determine score override if provided (for tests)
       const forceScore = forceScoreSequence && forceScoreSequence[currentAttempt - 1] !== undefined
         ? forceScoreSequence[currentAttempt - 1]
         : undefined;
 
-      // Mediate outputs with QA Checker node
+      const previousFeedback = feedbackHistory.length > 0 ? feedbackHistory[feedbackHistory.length - 1] : undefined;
+
+      // 1. Execute Copywriter & Art Director concurrently in parallel
+      const [copyOutput, artOutput] = await Promise.all([
+        runCopywriterNode(prompt, brandDna, previousFeedback),
+        runArtDirectorNode(prompt, brandDna, previousFeedback),
+      ]);
+
+      // 2. Mediate outputs with QA Checker node
       const qaEval = await runQaCheckerNode(prompt, brandDna, copyOutput, artOutput, currentAttempt, forceScore);
       
       const record: AttemptRecord = { copy: copyOutput, art: artOutput, qa: qaEval };
@@ -238,13 +202,13 @@ export async function executeCreativePipeline(
       finalSelection = await runBestOfNFallbackNode(attemptsHistory);
     }
 
-    // 4. Save campaign structure to database
+    // 4. Save campaign structure to database safely
     const dbRes = await query(
       `INSERT INTO campaigns 
       (brand_dna_id, prompt, headline, body_text, social_copy, image_prompt, visual_style, qa_score, qa_feedback, attempts)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
       [
-        brandDnaId,
+        validDnaId,
         prompt,
         finalSelection.copy.headline,
         finalSelection.copy.bodyText,
@@ -258,33 +222,27 @@ export async function executeCreativePipeline(
     );
     const campaignId = dbRes.rows[0].id;
 
-    // 5. Measure and Log Cost metrics
-    // Simulated token pricing logic
-    const tokensPerAttempt = 5550;
-    const costPerAttempt = (5000 * 0.075 / 1000000) + (550 * 0.30 / 1000000); // $0.00054
-    const totalCost = costPerAttempt * currentAttempt;
-    
-    // Sequential comparison baseline estimation (sequential makes 6 separate LLM calls)
-    const sequentialCostPerAttempt = (7500 * 0.075 / 1000000) + (800 * 0.30 / 1000000); // $0.0008025
-    const sequentialTotalCost = sequentialCostPerAttempt * currentAttempt;
-    const costSavingsPercent = ((sequentialTotalCost - totalCost) / sequentialTotalCost) * 100;
+    // Estimate costs ($0.000540 per attempt parallel vs $0.000802 sequential)
+    const costPerAttemptParallel = 0.000540;
+    const costPerAttemptSequential = 0.0008023;
 
-    console.log(`[PIPELINE COST] Attempts: ${currentAttempt}, Est. Cost: $${totalCost.toFixed(6)} (vs Sequential: $${sequentialTotalCost.toFixed(6)}, Savings: ${costSavingsPercent.toFixed(1)}%)`);
+    const estimatedCostUsd = currentAttempt * costPerAttemptParallel;
+    const sequentialCostUsd = currentAttempt * costPerAttemptSequential;
+    const savingsVsSequentialPercent = ((sequentialCostUsd - estimatedCostUsd) / sequentialCostUsd) * 100;
 
-    span.setAttribute('pipeline.campaign_id', campaignId);
-    span.setAttribute('pipeline.attempts_run', currentAttempt);
-    span.setAttribute('pipeline.final_score', finalSelection.qa.score);
-    span.setAttribute('pipeline.total_cost_usd', totalCost);
+    console.log(
+      `[PIPELINE COST] Attempts: ${currentAttempt}, Est. Cost: $${estimatedCostUsd.toFixed(6)} (vs Sequential: $${sequentialCostUsd.toFixed(6)}, Savings: ${savingsVsSequentialPercent.toFixed(1)}%)`
+    );
+
     span.setStatus({ code: SpanStatusCode.OK });
+    span.end();
 
     return {
-      id: campaignId,
-      brandDnaId,
-      prompt,
-      copy: finalSelection.copy,
-      art: finalSelection.art,
-      qa: finalSelection.qa,
-      attempts: currentAttempt
+      campaignId,
+      attempts: currentAttempt,
+      finalSelection,
+      estimatedCostUsd,
+      savingsVsSequentialPercent
     };
   });
 }
