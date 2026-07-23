@@ -137,3 +137,7 @@ class MetricsRegistry {
 }
 
 export const metricsRegistry = new MetricsRegistry();
+
+export function recordNodeSpan(nodeName: string, status: string = 'ok'): void {
+  metricsRegistry.recordAgentNodeSpan(nodeName, status);
+}

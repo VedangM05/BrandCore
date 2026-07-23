@@ -61,7 +61,7 @@ async function traceAgentNode<T>(nodeName: string, fn: () => Promise<T>): Promis
 }
 
 export async function runCopywriterNode(prompt: string, brandDna: any, feedback?: string): Promise<CopywriterOutput> {
-  return traceAgentNode('Copywriter', async () => {
+  return traceAgentNode('copywriter_agent_node', async () => {
     const tone = brandDna.tone || 'Modern & Authoritative';
     const tagline = brandDna.tagline || 'Elevate Your Business';
     
@@ -79,7 +79,7 @@ export async function runCopywriterNode(prompt: string, brandDna: any, feedback?
 }
 
 export async function runArtDirectorNode(prompt: string, brandDna: any, feedback?: string): Promise<ArtDirectorOutput> {
-  return traceAgentNode('Art Director', async () => {
+  return traceAgentNode('art_director_agent_node', async () => {
     const colors = brandDna.colors || ['#6366f1', '#06b6d4'];
     const font = brandDna.font_pairings || 'Inter & Roboto';
 
