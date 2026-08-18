@@ -2,6 +2,17 @@ import { Request, Response, NextFunction } from 'express';
 import { metricsRegistry } from '../services/metrics.service';
 import { defaultQueueManager } from '../services/queue.service';
 
+// Registered once at module load - real BullMQ (unlike the old fake queue)
+// requires a fixed processor per job name, not a handler swapped in per
+// call. Dispatch on payload.shouldFail so this same handler backs both the
+// "deliberate failure" demo below and any ordinary job of this name.
+defaultQueueManager.registerHandler('deliberate_failure_job', async (payload) => {
+  if (payload.shouldFail) {
+    throw new Error(payload.errorMessage);
+  }
+  return { status: 'ok' };
+});
+
 /**
  * Serves Prometheus formatted metrics text output.
  */
@@ -27,23 +38,27 @@ export async function handleInjectTestFailure(req: Request, res: Response, next:
     const jobName = req.body?.jobName || 'deliberate_failure_job';
     const errorMessage = req.body?.errorMessage || 'Deliberate test fault injected into queue worker';
 
-    // 1. Enqueue job
+    // Custom job names (beyond the default registered at module load) need
+    // their own handler - real BullMQ's Worker dispatches strictly by name.
+    if (jobName !== 'deliberate_failure_job') {
+      defaultQueueManager.registerHandler(jobName, async (payload) => {
+        if (payload.shouldFail) throw new Error(payload.errorMessage);
+        return { status: 'ok' };
+      });
+    }
+
     const job = await defaultQueueManager.add(jobName, {
       shouldFail: true,
       errorMessage,
       injectedAt: new Date().toISOString()
     });
 
-    // 2. Process job with handler that throws
-    try {
-      await defaultQueueManager.processJob(job.id, async (payload) => {
-        if (payload.shouldFail) {
-          throw new Error(payload.errorMessage);
-        }
-      });
-    } catch (workerErr) {
-      // Expected failure captured by worker
-    }
+    // Wait for the worker (real BullMQ, or the synchronous fallback when
+    // REDIS_URL isn't configured) to actually run and fail the job, so the
+    // dashboard snapshot below reflects it.
+    await defaultQueueManager.waitForCompletion(job.id).catch(() => {
+      // Timed out - proceed anyway; the dashboard just won't show it yet.
+    });
 
     const updatedDashboard = metricsRegistry.getGrafanaDashboardData();
 

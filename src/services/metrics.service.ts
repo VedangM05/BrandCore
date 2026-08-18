@@ -3,12 +3,6 @@
  * Holds counters, gauges, and histograms for OpenTelemetry telemetry and Grafana monitoring.
  */
 
-interface MetricCounter {
-  name: string;
-  help: string;
-  labels: Record<string, number>;
-}
-
 class MetricsRegistry {
   private agentNodeSpans = new Map<string, number>();
   private bullmqEvents = new Map<string, number>();
