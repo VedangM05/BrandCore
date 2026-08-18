@@ -125,4 +125,123 @@ CREATE INDEX IF NOT EXISTS idx_assets_type ON assets(type);
 CREATE INDEX IF NOT EXISTS idx_assets_tags ON assets USING GIN(tags);
 CREATE INDEX IF NOT EXISTS idx_assets_created_at ON assets(created_at);
 
+-- Database schema additions for per-user ownership (multi-tenancy fix)
+-- Previously crawl_results/crawl_jobs/campaigns/assets had no owner column at
+-- all: any authenticated user could read, edit, or generate against any
+-- other user's scanned brand or generated assets by guessing/enumerating a
+-- UUID. Every one of these tables gets a nullable user_id (nullable because
+-- pre-migration rows have no recorded owner and are intentionally treated as
+-- inaccessible going forward - see brandDna.service.ts / asset.service.ts -
+-- rather than guessed at or made globally readable).
+ALTER TABLE crawl_jobs ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE assets ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;
+
+CREATE INDEX IF NOT EXISTS idx_crawl_jobs_user ON crawl_jobs(user_id);
+CREATE INDEX IF NOT EXISTS idx_crawl_results_user ON crawl_results(user_id);
+CREATE INDEX IF NOT EXISTS idx_campaigns_user ON campaigns(user_id);
+CREATE INDEX IF NOT EXISTS idx_assets_user ON assets(user_id);
+
+-- crawl_results.url was globally UNIQUE, so one user's rescan of a domain
+-- another user had already scanned would silently overwrite that user's row
+-- (ON CONFLICT (url) DO UPDATE in dna.service.ts). Scope uniqueness to
+-- (user_id, url) instead so each user's scan of the same site is independent.
+ALTER TABLE crawl_results DROP CONSTRAINT IF EXISTS crawl_results_url_key;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'crawl_results_user_url_key'
+  ) THEN
+    ALTER TABLE crawl_results ADD CONSTRAINT crawl_results_user_url_key UNIQUE (user_id, url);
+  END IF;
+END $$;
+
+-- Database schema additions for server-side multi-tenant projects.
+-- Previously a "project" (a scanned brand workspace) existed only in the
+-- frontend's localStorage, keyed by a client-generated id
+-- (`brand-${Date.now()}`) - it never persisted server-side, didn't survive a
+-- different browser/device, and every generation call had to fall back to
+-- resolving brand identity by URL string instead of a real id (see
+-- brandDna.service.ts). This table is the real, server-owned record of "this
+-- user scanned this site" - one row per (user_id, url), upserted by
+-- dna.service.ts on every scan and linked to its Brand DNA row.
+CREATE TABLE IF NOT EXISTS projects (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    url VARCHAR(2048) NOT NULL,
+    domain VARCHAR(255) NOT NULL,
+    brand_dna_id UUID REFERENCES crawl_results(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_user_url ON projects(user_id, url);
+CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id);
+CREATE INDEX IF NOT EXISTS idx_projects_brand_dna ON projects(brand_dna_id);
+
+-- Database schema additions for "Sign in with Google".
+-- `password_hash` stays NOT NULL and every Google-created account still gets
+-- one - a random, never-issued, argon2-hashed value (see auth.service.ts) -
+-- rather than loosening that constraint, so the existing password login path
+-- needs zero changes and can't be tricked into accepting an empty/null hash.
+-- `google_id` (the token's stable `sub` claim) is the primary match key;
+-- `auth_provider` is informational (which flow created/last-linked the
+-- account) for support/debugging, not itself a security boundary.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider VARCHAR(20) NOT NULL DEFAULT 'local';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id) WHERE google_id IS NOT NULL;
+
+-- Database schema additions for email verification & password reset.
+-- Tokens are stored as the raw random string (not a hash), matching the
+-- existing convention for refresh_tokens.token in this schema - unpredictable
+-- (32 random bytes) plus a short expiry is the security boundary, same as
+-- refresh tokens already rely on.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE;
+-- Google-authenticated accounts are marked verified at creation time
+-- (Google already verified the email - see authenticateWithGoogle in
+-- auth.service.ts), so this only meaningfully starts FALSE for local
+-- (password) registrations.
+
+CREATE TABLE IF NOT EXISTS email_verification_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token VARCHAR(255) UNIQUE NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_token ON email_verification_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user ON email_verification_tokens(user_id);
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token VARCHAR(255) UNIQUE NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(user_id);
+
+-- Database schema addition for chat history persistence (chat.service.ts).
+-- Previously the LangGraph website Q&A chatbot's conversation history lived
+-- only in the frontend's component state - a page refresh silently lost it,
+-- and there was no way to show it again after reopening the Business DNA
+-- view. One row per turn (both user and assistant messages), scoped by
+-- (user_id, brand_dna_id) so history is per-user even if brand ownership
+-- ever changes, and ordered by created_at for replay.
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    brand_dna_id UUID NOT NULL REFERENCES crawl_results(id) ON DELETE CASCADE,
+    role VARCHAR(20) NOT NULL, -- 'user' | 'assistant'
+    content TEXT NOT NULL,
+    grounded BOOLEAN,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_user_brand ON chat_messages(user_id, brand_dna_id, created_at);
+
 
