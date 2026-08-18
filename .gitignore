@@ -32,3 +32,13 @@ coverage/
 # Temporary files
 tmp/
 temp/
+
+# Generated asset files (images, uploads) - not source, shouldn't be committed
+uploads/*
+!uploads/.gitkeep
+
+# Claude Code local/machine-specific state - permissions and session locks
+# are per-developer, not project config. launch.json (dev-server preview
+# config) is the one file in here worth sharing - stays tracked.
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
