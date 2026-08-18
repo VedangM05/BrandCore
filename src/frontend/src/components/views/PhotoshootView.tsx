@@ -1,179 +1,262 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import gsap from 'gsap';
+import { useGSAP } from '@gsap/react';
 import { Spinner } from '../ui/Spinner';
+import { GlobeIcon, CheckIcon } from '../icons';
+import { useProject } from '../../context/ProjectContext';
+import { apiRequestJson, getAssetBlobUrl, saveAssetEdit } from '../../api/client';
+import { prefersReducedMotion } from '../../lib/motion';
+import { AssetEditor, EditableTextLayer, EditorState } from '../editor/AssetEditor';
 
 const PHOTOSHOOT_STYLES = ['Studio', 'Ingredient', 'In Use', 'Contextual'] as const;
 
-interface PhotoshootViewProps {
-  style: string;
-  scenePrompt: string;
-  isGenerating: boolean;
-  generatedPhoto: string | null;
-  onStyleChange: (style: string) => void;
-  onPromptChange: (value: string) => void;
-  onGenerate: (e: React.FormEvent) => void;
+// Mirrors the backend's GENERATION_DIMENSIONS (photoshoot.service.ts). 'square'
+// keeps the original 1024x1024 default (not the 1080 grid used elsewhere) when
+// no aspect is sent - see generatePhotoshootImage's fallback in photoshoot.service.ts.
+const ASPECT_OPTIONS: Array<{ id: 'square' | 'portrait' | 'story'; label: string; width: number; height: number }> = [
+  { id: 'square', label: 'Square · 1:1', width: 1024, height: 1024 },
+  { id: 'portrait', label: 'Portrait · 4:5', width: 1080, height: 1350 },
+  { id: 'story', label: 'Story · 9:16', width: 1080, height: 1920 },
+];
+
+interface GeneratedAsset {
+  id: string;
+  name: string;
 }
 
-export const PhotoshootView: React.FC<PhotoshootViewProps> = ({
-  style,
-  scenePrompt,
-  isGenerating,
-  generatedPhoto,
-  onStyleChange,
-  onPromptChange,
-  onGenerate,
-}) => {
-  const [downloadSuccess, setDownloadSuccess] = useState(false);
-  const [savedToLibrary, setSavedToLibrary] = useState(false);
+interface GenerateImageResponse {
+  asset: GeneratedAsset;
+}
 
-  const handleDownload = () => {
-    setDownloadSuccess(true);
-    setTimeout(() => setDownloadSuccess(false), 2000);
+export const PhotoshootView: React.FC = () => {
+  const { activeProject } = useProject();
+
+  const [style, setStyle] = useState<string>(PHOTOSHOOT_STYLES[0]);
+  const [aspect, setAspect] = useState<(typeof ASPECT_OPTIONS)[number]['id']>('square');
+  const [resultDims, setResultDims] = useState(ASPECT_OPTIONS[0]);
+  const [scenePrompt, setScenePrompt] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [asset, setAsset] = useState<GeneratedAsset | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const previewRef = useRef<HTMLDivElement>(null);
+  const objectUrlRef = useRef<string | null>(null);
+
+  useGSAP(
+    () => {
+      if (!imageUrl || prefersReducedMotion() || !previewRef.current) return;
+      gsap.fromTo(previewRef.current, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.45, ease: 'power2.out' });
+    },
+    { dependencies: [imageUrl] }
+  );
+
+  // Revoke the previous object URL whenever we replace it or unmount, so we
+  // don't leak blob memory across repeated generations.
+  useEffect(() => {
+    return () => {
+      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    };
+  }, []);
+
+  const loadPreview = async (assetId: string) => {
+    const url = await getAssetBlobUrl(assetId);
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    objectUrlRef.current = url;
+    setImageUrl(url);
   };
 
-  const handleSaveToLibrary = () => {
-    setSavedToLibrary(true);
-    setTimeout(() => setSavedToLibrary(false), 2000);
+  const handleGenerate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!scenePrompt.trim() || !activeProject) return;
+
+    setIsGenerating(true);
+    setError(null);
+    setAsset(null);
+    setImageUrl(null);
+    setSaved(false);
+
+    const requestedAspectOption = ASPECT_OPTIONS.find((o) => o.id === aspect) || ASPECT_OPTIONS[0];
+
+    try {
+      const data = await apiRequestJson<GenerateImageResponse>('/api/photoshoot/image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          // activeProject.id is the real crawl_results id for any project
+          // synced from a scan (see ProjectContext.tsx) - fall back to
+          // url/name only for stale pre-migration localStorage entries.
+          brandDnaId: activeProject.id || activeProject.url || activeProject.name,
+          scenePrompt,
+          style,
+          aspect,
+        }),
+      });
+
+      setAsset(data.asset);
+      setResultDims(requestedAspectOption);
+      await loadPreview(data.asset.id);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Image generation failed');
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
-  const backdropGradients: Record<string, string> = {
-    Studio: 'from-slate-900 via-indigo-950 to-slate-900 text-indigo-100',
-    Ingredient: 'from-amber-950 via-orange-950 to-slate-900 text-amber-100',
-    'In Use': 'from-emerald-950 via-teal-950 to-slate-900 text-emerald-100',
-    Contextual: 'from-blue-950 via-slate-900 to-indigo-950 text-sky-100'
+  const handleSaveEdit = async (result: { blob: Blob; editorState: EditorState }) => {
+    if (!asset) return;
+    setIsSaving(true);
+    setError(null);
+    try {
+      await saveAssetEdit(asset.id, result.blob, result.editorState);
+      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+      const url = URL.createObjectURL(result.blob);
+      objectUrlRef.current = url;
+      setImageUrl(url);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save your edits');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const activeGradient = backdropGradients[style] || backdropGradients.Studio;
+  const emptyTextLayers: EditableTextLayer[] = [];
 
   return (
     <div className="space-y-8">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">Visual studio</p>
-        <h2 className="text-2xl font-bold text-slate-900 mt-1">AI Photoshoot</h2>
-        <p className="text-sm text-slate-600 mt-1 max-w-2xl">
-          Generate product imagery with controlled lighting, context, and composition presets.
+        <p className="text-xs font-medium uppercase tracking-wide text-brand-muted">Visual studio</p>
+        <h2 className="font-display text-3xl tracking-tighter text-brand-text mt-1">AI Photoshoot</h2>
+        <p className="text-sm text-brand-muted mt-1.5 max-w-2xl leading-relaxed">
+          Generates a real on-brand scene image from a FLUX-backed model, grounded in your scanned brand colors —
+          then edit it directly: add text, crop, and adjust filters.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div className="panel p-6 space-y-5">
-          <form onSubmit={onGenerate} className="space-y-5">
-            <div>
-              <label className="text-sm font-semibold text-slate-900 block mb-2">Scene preset</label>
-              <div className="grid grid-cols-2 gap-2">
-                {PHOTOSHOOT_STYLES.map((theme) => (
-                  <button
-                    key={theme}
-                    type="button"
-                    onClick={() => onStyleChange(theme)}
-                    className={`px-4 py-3 rounded-xl text-sm font-semibold border transition-all ${
-                      style === theme
-                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                        : 'bg-white text-slate-700 border-slate-300 hover:border-indigo-400'
-                    }`}
-                  >
-                    {theme}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="scene-prompt" className="text-sm font-semibold text-slate-900 block mb-2">
-                Scene description
-              </label>
-              <input
-                id="scene-prompt"
-                type="text"
-                required
-                value={scenePrompt}
-                onChange={(e) => onPromptChange(e.target.value)}
-                placeholder="e.g. Set product on a clean wood table with warm ambient sunlight"
-                className="input-field"
-              />
-            </div>
-
-            <button type="submit" disabled={isGenerating} className="btn-primary w-full sm:w-auto">
-              {isGenerating ? 'Generating Scene...' : 'Render Product Scene'}
-            </button>
-          </form>
+      {!activeProject && (
+        <div className="panel p-10 text-center space-y-4">
+          <div className="w-11 h-11 rounded-md bg-brand-sunken text-brand-muted flex items-center justify-center mx-auto">
+            <GlobeIcon className="w-5 h-5" />
+          </div>
+          <h3 className="text-base font-semibold text-brand-text">No brand scanned yet</h3>
+          <p className="text-sm text-brand-muted max-w-sm mx-auto leading-relaxed">
+            Scan a website on the Business DNA tab first — the render is grounded in that brand's colors.
+          </p>
         </div>
+      )}
 
-        <div className="panel p-6 flex flex-col min-h-[360px]">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-slate-900">Preview Generation</h3>
-            {generatedPhoto && (
-              <span className="tag bg-emerald-50 text-emerald-700 border border-emerald-200">
-                Status: Complete
-              </span>
+      {activeProject && (
+        <div className="space-y-5">
+          <div className="panel p-6 space-y-5">
+            <form onSubmit={handleGenerate} className="space-y-5">
+              <div>
+                <label className="text-sm font-medium text-brand-text block mb-2">Scene preset</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {PHOTOSHOOT_STYLES.map((theme) => (
+                    <button
+                      key={theme}
+                      type="button"
+                      onClick={() => setStyle(theme)}
+                      className={`px-4 py-2.5 rounded-md text-sm font-medium border transition-colors ${
+                        style === theme
+                          ? 'bg-brand-ink text-brand-bg border-brand-ink'
+                          : 'bg-brand-surface text-brand-text border-brand-border hover:border-brand-border-strong'
+                      }`}
+                    >
+                      {theme}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-brand-text block mb-2">
+                  Format &middot; sets composition before generating, not just a crop after
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {ASPECT_OPTIONS.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => setAspect(option.id)}
+                      className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${
+                        aspect === option.id
+                          ? 'bg-brand-ink text-brand-bg border-brand-ink'
+                          : 'bg-brand-surface text-brand-muted border-brand-border hover:border-brand-border-strong'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="scene-prompt" className="text-sm font-medium text-brand-text block mb-2">
+                  Scene description
+                </label>
+                <input
+                  id="scene-prompt"
+                  type="text"
+                  required
+                  value={scenePrompt}
+                  onChange={(e) => setScenePrompt(e.target.value)}
+                  placeholder="e.g. Set product on a clean wood table with warm ambient sunlight"
+                  className="input-field"
+                />
+              </div>
+
+              <button type="submit" disabled={isGenerating} className="btn-primary w-full sm:w-auto">
+                {isGenerating ? 'Generating scene…' : 'Render Product Scene'}
+              </button>
+            </form>
+
+            {error && (
+              <div role="alert" className="rounded-md bg-state-danger border border-[#F3C6C6] text-state-danger-text text-sm px-4 py-3">
+                {error}
+              </div>
             )}
           </div>
 
           {isGenerating && (
-            <div className="flex-1 flex items-center justify-center p-8">
-              <Spinner label="Rendering product photoshoot with AI backdrop generator..." />
+            <div className="panel p-10 flex items-center justify-center">
+              <Spinner label="Generating with FLUX — this can take 10–30 seconds…" />
             </div>
           )}
 
-          {!isGenerating && !generatedPhoto && (
-            <div className="flex-1 rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center text-sm text-slate-500 p-8">
+          {!isGenerating && !imageUrl && (
+            <div className="panel p-10 rounded-md border border-dashed border-brand-border-strong flex items-center justify-center text-sm text-brand-muted text-center">
               Your render preview will appear here
             </div>
           )}
 
-          {!isGenerating && generatedPhoto && (
-            <div className="flex-1 flex flex-col gap-4">
-              <div className={`flex-1 rounded-xl bg-gradient-to-br ${activeGradient} border border-slate-700 p-6 flex flex-col justify-between relative overflow-hidden min-h-[220px]`}>
-                <div className="flex justify-between items-start z-10">
-                  <span className="px-2.5 py-1 rounded-md bg-black/50 backdrop-blur-md border border-white/20 text-[11px] font-bold tracking-wide uppercase text-white">
-                    {style} Preset
+          {!isGenerating && imageUrl && asset && (
+            <div ref={previewRef} className="panel p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-brand-text">Edit your render</h3>
+                {saved && (
+                  <span className="text-xs font-medium text-state-success-text bg-state-success px-2.5 py-1 rounded-md inline-flex items-center gap-1.5">
+                    <CheckIcon className="w-3.5 h-3.5" />
+                    Saved
                   </span>
-                  <span className="px-2 py-0.5 rounded bg-white/20 backdrop-blur-md text-[10px] text-white font-mono">
-                    1024 &times; 1024 px &middot; 1:1
-                  </span>
-                </div>
-
-                <div className="my-auto text-center space-y-2 z-10">
-                  <div className="w-16 h-16 mx-auto rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-2xl shadow-xl">
-                    📸
-                  </div>
-                  <p className="text-sm font-semibold text-white max-w-xs mx-auto line-clamp-2">
-                    &ldquo;{scenePrompt || 'Minimalist studio setup'}&rdquo;
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-between text-[11px] text-white/80 z-10 font-medium">
-                  <span>AI Backdrop Engine &middot; Active</span>
-                  <span>Lighting: Studio Softbox</span>
-                </div>
+                )}
               </div>
-
-              <div className="space-y-3 pt-1">
-                <div>
-                  <p className="font-bold text-emerald-700 text-sm">Render Successful</p>
-                  <p className="text-sm text-slate-600 mt-0.5">{generatedPhoto}</p>
-                </div>
-
-                <div className="flex flex-wrap gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={handleDownload}
-                    className="btn-secondary py-2 text-xs"
-                  >
-                    {downloadSuccess ? '✓ Image Downloaded' : 'Download HD Image'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveToLibrary}
-                    className="btn-primary py-2 text-xs"
-                  >
-                    {savedToLibrary ? '✓ Saved to Asset Library' : 'Save to Asset Library'}
-                  </button>
-                </div>
-              </div>
+              <AssetEditor
+                imageUrl={imageUrl}
+                nativeWidth={resultDims.width}
+                nativeHeight={resultDims.height}
+                initialTextLayers={emptyTextLayers}
+                onSave={handleSaveEdit}
+                isSaving={isSaving}
+                saveLabel="Save to library"
+              />
             </div>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 };
