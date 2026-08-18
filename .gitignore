@@ -42,3 +42,7 @@ uploads/*
 # config) is the one file in here worth sharing - stays tracked.
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+# Claude Code's own session handoff notes - internal working notes for
+# picking up a session, not project documentation meant for the repo.
+HANDOFF.md
