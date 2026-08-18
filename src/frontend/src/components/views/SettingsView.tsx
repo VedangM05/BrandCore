@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { CheckIcon } from '../icons';
 
 export const SettingsView: React.FC = () => {
   const [defaultAspect, setDefaultAspect] = useState('1:1');
@@ -14,42 +15,45 @@ export const SettingsView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8 max-w-4xl">
+    <div className="space-y-8 max-w-3xl">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">Configuration</p>
-        <h2 className="text-2xl font-bold text-slate-900 mt-1">Workspace Settings</h2>
-        <p className="text-sm text-slate-600 mt-1">
-          Manage workspace defaults, AI provider integrations, export behaviors, and team notifications.
+        <p className="text-xs font-medium uppercase tracking-wide text-brand-muted">Configuration</p>
+        <h2 className="font-display text-3xl tracking-tighter text-brand-text mt-1">Workspace settings</h2>
+        <p className="text-sm text-brand-muted mt-1.5 leading-relaxed">
+          Defaults for generation, integrations, and notifications.
         </p>
       </div>
 
-      <form onSubmit={handleSaveSettings} className="space-y-6">
+      <form onSubmit={handleSaveSettings} className="space-y-5">
         <section className="panel p-6 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Brand & AI Defaults</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Configure default generation presets for campaigns.</p>
-            </div>
-            <span className="tag bg-indigo-50 text-indigo-700 border border-indigo-200">Preset</span>
+          <div className="border-b border-brand-border pb-3">
+            <h3 className="text-sm font-semibold text-brand-text">Generation defaults</h3>
+            <p className="text-xs text-brand-muted mt-0.5">Applied as a starting point for new campaigns.</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-2">Default Aspect Ratio</label>
+              <label htmlFor="default-aspect" className="text-xs font-medium text-brand-muted block mb-1.5">
+                Default aspect ratio
+              </label>
               <select
+                id="default-aspect"
                 value={defaultAspect}
                 onChange={(e) => setDefaultAspect(e.target.value)}
                 className="input-field"
               >
-                <option value="1:1">1:1 Square (Social Feed)</option>
-                <option value="16:9">16:9 Widescreen (Banner / Web)</option>
-                <option value="9:16">9:16 Vertical (Stories / Reels)</option>
+                <option value="1:1">1:1 square (social feed)</option>
+                <option value="16:9">16:9 widescreen (banner)</option>
+                <option value="9:16">9:16 vertical (stories)</option>
               </select>
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-2">Default Brand Tone</label>
+              <label htmlFor="default-tone" className="text-xs font-medium text-brand-muted block mb-1.5">
+                Default brand tone
+              </label>
               <input
+                id="default-tone"
                 type="text"
                 value={defaultTone}
                 onChange={(e) => setDefaultTone(e.target.value)}
@@ -60,72 +64,73 @@ export const SettingsView: React.FC = () => {
         </section>
 
         <section className="panel p-6 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+          <div className="flex items-center justify-between border-b border-brand-border pb-3">
             <div>
-              <h3 className="text-base font-bold text-slate-900">AI Provider Integrations</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Gemini 2.5 Flash API Key and LangGraph Agent Engine status.</p>
+              <h3 className="text-sm font-semibold text-brand-text">AI providers</h3>
+              <p className="text-xs text-brand-muted mt-0.5">API keys, read from the server environment.</p>
             </div>
-            <span className="tag bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Active
-            </span>
           </div>
 
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-sm font-bold text-slate-900">Google Gemini API Key</p>
-              <p className="text-xs text-slate-600 font-mono">GEMINI_API_KEY &middot; Set in environment (`.env`)</p>
+          <div className="p-3.5 rounded-md bg-brand-sunken border border-brand-border flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-brand-text">Groq</p>
+              <p className="text-xs text-brand-muted mt-0.5">Copy, campaign ideas, text Brand QA, and chat answers.</p>
+              <p className="text-xs text-brand-muted font-mono mt-0.5">GROQ_API_KEY</p>
             </div>
-            <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-200">
-              Connected
-            </span>
+          </div>
+
+          <div className="p-3.5 rounded-md bg-brand-sunken border border-brand-border flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-brand-text">Google Gemini</p>
+              <p className="text-xs text-brand-muted mt-0.5">Image Brand QA (vision) and knowledge-base embeddings.</p>
+              <p className="text-xs text-brand-muted font-mono mt-0.5">GEMINI_API_KEY</p>
+            </div>
           </div>
         </section>
 
         <section className="panel p-6 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Notifications & Delivery</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Control export delivery alerts and background task notifications.</p>
-            </div>
+          <div className="border-b border-brand-border pb-3">
+            <h3 className="text-sm font-semibold text-brand-text">Notifications</h3>
+            <p className="text-xs text-brand-muted mt-0.5">Delivery and background task alerts.</p>
           </div>
 
-          <div className="space-y-3">
-            <label className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer">
+          <div className="space-y-2.5">
+            <label className="flex items-center justify-between p-3.5 rounded-md bg-brand-sunken border border-brand-border cursor-pointer">
               <div>
-                <p className="text-sm font-semibold text-slate-900">Auto-persist Generated Renders</p>
-                <p className="text-xs text-slate-600">Automatically save AI Photoshoot renders to Asset Library</p>
+                <p className="text-sm font-medium text-brand-text">Auto-persist generated renders</p>
+                <p className="text-xs text-brand-muted mt-0.5">Save AI Photoshoot renders to the asset library automatically</p>
               </div>
               <input
                 type="checkbox"
                 checked={autoExport}
                 onChange={(e) => setAutoExport(e.target.checked)}
-                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 bg-white"
+                className="w-4 h-4 rounded text-brand-primary focus:ring-brand-primary border-brand-border-strong bg-white"
               />
             </label>
 
-            <label className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer">
+            <label className="flex items-center justify-between p-3.5 rounded-md bg-brand-sunken border border-brand-border cursor-pointer">
               <div>
-                <p className="text-sm font-semibold text-slate-900">Campaign Email Digest</p>
-                <p className="text-xs text-slate-600">Receive summary reports when multi-agent QA approvals complete</p>
+                <p className="text-sm font-medium text-brand-text">Campaign email digest</p>
+                <p className="text-xs text-brand-muted mt-0.5">Summary when a multi-agent QA approval completes</p>
               </div>
               <input
                 type="checkbox"
                 checked={emailAlerts}
                 onChange={(e) => setEmailAlerts(e.target.checked)}
-                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 bg-white"
+                className="w-4 h-4 rounded text-brand-primary focus:ring-brand-primary border-brand-border-strong bg-white"
               />
             </label>
           </div>
         </section>
 
-        <div className="flex items-center justify-between pt-2">
+        <div className="flex items-center gap-3 pt-1">
           <button type="submit" className="btn-primary px-6 py-2.5 text-xs">
-            Save Workspace Settings
+            Save settings
           </button>
           {savedSuccess && (
-            <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
-              ✓ Settings saved successfully!
+            <span className="text-xs font-medium text-state-success-text bg-state-success px-3 py-1.5 rounded-md inline-flex items-center gap-1.5">
+              <CheckIcon className="w-3.5 h-3.5" />
+              Settings saved
             </span>
           )}
         </div>
