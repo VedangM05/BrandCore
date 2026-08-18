@@ -37,12 +37,8 @@ temp/
 uploads/*
 !uploads/.gitkeep
 
-# Claude Code local/machine-specific state - permissions and session locks
-# are per-developer, not project config. launch.json (dev-server preview
-# config) is the one file in here worth sharing - stays tracked.
-.claude/settings.local.json
-.claude/scheduled_tasks.lock
-
-# Claude Code's own session handoff notes - internal working notes for
-# picking up a session, not project documentation meant for the repo.
+# Local dev-tool state and internal session notes - none of it is project
+# config meant for the repo.
+.claude/
 HANDOFF.md
+AI_Brand_Intelligence_Platform.md
