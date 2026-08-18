@@ -62,6 +62,73 @@ describe('Auth & User Management API Integration Tests', () => {
     expect(refreshRes.body.refreshToken).not.toBe(firstRefreshToken);
   });
 
+  // Security regression (HANDOFF.md §22): handleRegister used to
+  // destructure `role` straight from this public, unauthenticated request
+  // body and pass it through to registerUser() unvalidated - a self-
+  // registered account could set role: 'admin' and immediately receive a
+  // real admin-scoped JWT, a complete RBAC bypass (requireRole('admin')
+  // gates real endpoints in observability.controller.ts). Confirmed
+  // exploitable with a plain curl POST during this session's security
+  // review before being fixed. This test would have caught it.
+  it('ignores a client-supplied role and always registers as a plain user, even when "admin" is requested', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ email: 'privesc-attempt@example.com', password: 'Password123!', role: 'admin' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.user.role).toBe('user');
+
+    // The issued JWT itself must not carry 'admin' either - not just the
+    // response body's cosmetic `user.role` field.
+    const payload = JSON.parse(Buffer.from(res.body.accessToken.split('.')[1], 'base64').toString());
+    expect(payload.role).toBe('user');
+
+    // And the row actually persisted in the database must agree - the
+    // real thing requireRole() checks on every subsequent request, not
+    // just what this one response happened to say.
+    const loginRes = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'privesc-attempt@example.com', password: 'Password123!' });
+    const loginPayload = JSON.parse(Buffer.from(loginRes.body.accessToken.split('.')[1], 'base64').toString());
+    expect(loginPayload.role).toBe('user');
+  });
+
+  // Scenario 1b: Logout revokes the refresh token server-side
+  it('Scenario 1b (Logout): should revoke the refresh token on logout so it can no longer be used', async () => {
+    await request(app)
+      .post('/api/auth/register')
+      .send({ email: 'logout_test@example.com', password: 'Password123!' });
+
+    const loginRes = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'logout_test@example.com', password: 'Password123!' });
+
+    const { refreshToken } = loginRes.body;
+
+    const logoutRes = await request(app)
+      .post('/api/auth/logout')
+      .send({ refreshToken });
+
+    expect(logoutRes.status).toBe(200);
+
+    // The revoked token must now be rejected by refresh (reuse-detection path).
+    const reuseAfterLogoutRes = await request(app)
+      .post('/api/auth/refresh')
+      .send({ refreshToken });
+
+    expect(reuseAfterLogoutRes.status).toBe(401);
+  });
+
+  it('Scenario 1c (Logout edge cases): should return 200 for missing/garbage refresh tokens without throwing', async () => {
+    const noTokenRes = await request(app).post('/api/auth/logout').send({});
+    expect(noTokenRes.status).toBe(200);
+
+    const garbageTokenRes = await request(app)
+      .post('/api/auth/logout')
+      .send({ refreshToken: 'not-a-real-token' });
+    expect(garbageTokenRes.status).toBe(200);
+  });
+
   // Scenario 2: Edge Case (Refresh Token Rotation Reuse Detection)
   it('Scenario 2 (Edge Case): should detect token reuse and reject subsequent rotations', async () => {
     // 1. Register and Login

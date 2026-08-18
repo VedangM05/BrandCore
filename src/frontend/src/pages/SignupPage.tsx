@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { AuthLayout, AuthLink } from '../components/auth/AuthLayout';
+import { GoogleAuthButton, isGoogleAuthConfigured } from '../components/auth/GoogleAuthButton';
 
 export const SignupPage: React.FC = () => {
-  const { signup, isAuthenticated, isLoading } = useAuth();
+  const { signup, loginWithGoogleToken, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
@@ -16,6 +17,20 @@ export const SignupPage: React.FC = () => {
   if (!isLoading && isAuthenticated) {
     return <Navigate to="/" replace />;
   }
+
+  const handleGoogleSuccess = async (accessToken: string) => {
+    setError(null);
+    setSubmitting(true);
+    try {
+      await loginWithGoogleToken(accessToken);
+      navigate('/', { replace: true });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Google sign-up failed';
+      setError(message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,7 +61,7 @@ export const SignupPage: React.FC = () => {
   return (
     <AuthLayout
       title="Create account"
-      subtitle="Register to start building campaigns with your brand profile."
+      subtitle="Register to start building campaigns from your brand profile."
       footer={
         <>
           Already have an account? <AuthLink to="/login">Sign in</AuthLink>
@@ -55,7 +70,7 @@ export const SignupPage: React.FC = () => {
     >
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         {error && (
-          <div role="alert" className="rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3">
+          <div role="alert" className="rounded-md bg-state-danger border border-[#F3C6C6] text-state-danger-text text-sm px-4 py-3">
             {error}
             {error.includes('already registered') && (
               <p className="mt-2">
@@ -65,8 +80,19 @@ export const SignupPage: React.FC = () => {
           </div>
         )}
 
+        {isGoogleAuthConfigured() && (
+          <>
+            <GoogleAuthButton label="Sign up with Google" onSuccess={handleGoogleSuccess} onError={setError} disabled={submitting} />
+            <div className="flex items-center gap-3 text-xs text-brand-muted">
+              <span className="flex-1 h-px bg-brand-border" />
+              or continue with email
+              <span className="flex-1 h-px bg-brand-border" />
+            </div>
+          </>
+        )}
+
         <div>
-          <label htmlFor="signup-email" className="block text-sm font-semibold text-brand-text mb-1.5">
+          <label htmlFor="signup-email" className="block text-sm font-medium text-brand-text mb-1.5">
             Email
           </label>
           <input
@@ -83,7 +109,7 @@ export const SignupPage: React.FC = () => {
         </div>
 
         <div>
-          <label htmlFor="signup-password" className="block text-sm font-semibold text-brand-text mb-1.5">
+          <label htmlFor="signup-password" className="block text-sm font-medium text-brand-text mb-1.5">
             Password
           </label>
           <input
@@ -100,7 +126,7 @@ export const SignupPage: React.FC = () => {
         </div>
 
         <div>
-          <label htmlFor="signup-confirm" className="block text-sm font-semibold text-brand-text mb-1.5">
+          <label htmlFor="signup-confirm" className="block text-sm font-medium text-brand-text mb-1.5">
             Confirm password
           </label>
           <input
@@ -117,7 +143,7 @@ export const SignupPage: React.FC = () => {
         </div>
 
         <button type="submit" disabled={submitting} className="btn-primary w-full py-3" data-testid="signup-submit">
-          {submitting ? 'Creating account...' : 'Create account'}
+          {submitting ? 'Creating account…' : 'Create account'}
         </button>
       </form>
     </AuthLayout>

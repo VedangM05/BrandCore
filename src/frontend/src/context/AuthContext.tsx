@@ -1,14 +1,13 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { loginUser, refreshTokens, registerUser } from '../api/auth';
-import { decodeJwtPayload, isTokenExpired } from '../lib/jwt';
-
-const ACCESS_TOKEN_KEY = 'brandcore_access_token';
-const REFRESH_TOKEN_KEY = 'brandcore_refresh_token';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { AuthSession, loginUser, loginWithGoogle, logoutSession, refreshSession, registerUser } from '../api/auth';
+import { isTokenExpired } from '../lib/jwt';
+import { clearStoredSession, getRefreshToken, readStoredSession, writeStoredSession } from '../lib/session';
 
 export interface AuthUser {
   userId: string;
   email: string;
   role: string;
+  emailVerified: boolean;
 }
 
 export interface AuthContextType {
@@ -18,81 +17,77 @@ export interface AuthContextType {
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  loginWithGoogleToken: (googleAccessToken: string) => Promise<void>;
+  logout: () => Promise<void>;
   clearError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function readStoredTokens(): { accessToken: string | null; refreshToken: string | null } {
-  try {
-    return {
-      accessToken: localStorage.getItem(ACCESS_TOKEN_KEY),
-      refreshToken: localStorage.getItem(REFRESH_TOKEN_KEY),
-    };
-  } catch {
-    return { accessToken: null, refreshToken: null };
-  }
-}
-
-function persistTokens(accessToken: string, refreshToken: string): void {
-  localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-  localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
-}
-
-function clearStoredTokens(): void {
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
-}
-
-function userFromAccessToken(accessToken: string): AuthUser | null {
-  const payload = decodeJwtPayload(accessToken);
-  if (!payload?.userId || !payload.email) return null;
-  return {
-    userId: payload.userId,
-    email: payload.email,
-    role: payload.role || 'user',
-  };
-}
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const sessionEpoch = useRef(0);
 
-  const applySession = useCallback((accessToken: string, refreshToken: string) => {
-    persistTokens(accessToken, refreshToken);
-    setUser(userFromAccessToken(accessToken));
+  const applySession = useCallback((session: AuthSession) => {
+    sessionEpoch.current += 1;
+    writeStoredSession(session);
+    setUser(session.user);
   }, []);
 
-  const logout = useCallback(() => {
-    clearStoredTokens();
+  const logout = useCallback(async () => {
+    sessionEpoch.current += 1;
+    const refreshToken = getRefreshToken();
+    clearStoredSession();
     setUser(null);
     setError(null);
+    // Revoke server-side so the refresh token can't be replayed after logout.
+    // Fire-and-forget from the caller's perspective (local sign-out already happened).
+    if (refreshToken) {
+      void logoutSession(refreshToken);
+    }
   }, []);
 
   useEffect(() => {
     let cancelled = false;
+    const epochAtStart = sessionEpoch.current;
 
     async function hydrateSession() {
-      const { accessToken, refreshToken } = readStoredTokens();
-
-      if (accessToken && !isTokenExpired(accessToken)) {
-        if (!cancelled) setUser(userFromAccessToken(accessToken));
+      const stored = readStoredSession();
+      if (!stored) {
         if (!cancelled) setIsLoading(false);
         return;
       }
 
-      if (refreshToken) {
-        try {
-          const tokens = await refreshTokens(refreshToken);
-          if (!cancelled) applySession(tokens.accessToken, tokens.refreshToken);
-        } catch {
-          if (!cancelled) clearStoredTokens();
+      if (!isTokenExpired(stored.accessToken)) {
+        if (!cancelled && sessionEpoch.current === epochAtStart) {
+          setUser(stored.user);
         }
+        if (!cancelled) setIsLoading(false);
+        return;
       }
 
-      if (!cancelled) setIsLoading(false);
+      const refreshTokenUsed = stored.refreshToken;
+
+      try {
+        const session = await refreshSession(refreshTokenUsed);
+        if (!cancelled && sessionEpoch.current === epochAtStart) {
+          applySession(session);
+        }
+      } catch {
+        const current = readStoredSession();
+        if (
+          !cancelled &&
+          sessionEpoch.current === epochAtStart &&
+          current?.refreshToken === refreshTokenUsed
+        ) {
+          clearStoredSession();
+          setUser(null);
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
     }
 
     hydrateSession();
@@ -104,8 +99,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = useCallback(
     async (email: string, password: string) => {
       setError(null);
-      const tokens = await loginUser(email, password);
-      applySession(tokens.accessToken, tokens.refreshToken);
+      const session = await loginUser(email, password);
+      applySession(session);
     },
     [applySession]
   );
@@ -113,16 +108,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signup = useCallback(
     async (email: string, password: string) => {
       setError(null);
+      let res: any;
       try {
-        await registerUser(email, password);
+        res = await registerUser(email, password);
       } catch (err) {
         if (err instanceof Error && err.message === 'Email already registered') {
-          throw new Error('This email is already registered. Sign in instead, or use a different email.');
+          throw new Error('This email is already registered. Sign in with your existing password.');
         }
         throw err;
       }
-      const tokens = await loginUser(email, password);
-      applySession(tokens.accessToken, tokens.refreshToken);
+      if (res?.accessToken && res?.refreshToken && res?.user) {
+        applySession({
+          accessToken: res.accessToken,
+          refreshToken: res.refreshToken,
+          user: res.user,
+        });
+      } else {
+        const session = await loginUser(email, password);
+        applySession(session);
+      }
+    },
+    [applySession]
+  );
+
+  const loginWithGoogleToken = useCallback(
+    async (googleAccessToken: string) => {
+      setError(null);
+      const session = await loginWithGoogle(googleAccessToken);
+      applySession(session);
     },
     [applySession]
   );
@@ -138,6 +151,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error,
         login,
         signup,
+        loginWithGoogleToken,
         logout,
         clearError,
       }}

@@ -20,7 +20,11 @@ describe('App auth routing', () => {
 
     global.fetch = jest.fn().mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ accessToken: fakeAccess, refreshToken: fakeRefresh }),
+      json: async () => ({
+        accessToken: fakeAccess,
+        refreshToken: fakeRefresh,
+        user: { userId: 'u1', email: 'user@test.com', role: 'user' },
+      }),
     });
 
     render(<App />);
@@ -43,5 +47,19 @@ describe('App auth routing', () => {
 
     expect(await screen.findByRole('heading', { name: 'Create account' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Sign in' })).toBeInTheDocument();
+  });
+
+  test('should render a custom 404 page for unknown routes instead of silently redirecting', async () => {
+    window.history.pushState({}, 'Not found', '/this-route-does-not-exist');
+    render(<App />);
+
+    expect(await screen.findByText('404')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Back to workspace/i })).toBeInTheDocument();
+  });
+
+  test('should serve the privacy and terms pages without requiring authentication', async () => {
+    window.history.pushState({}, 'Privacy', '/privacy');
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'Privacy policy' })).toBeInTheDocument();
   });
 });

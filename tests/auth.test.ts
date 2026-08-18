@@ -57,12 +57,14 @@ describe('Auth Services Unit Tests', () => {
   describe('authenticateUser', () => {
     it('should authenticate user and return access and refresh tokens', async () => {
       await registerUser('auth@example.com', 'password123', 'user');
-      const tokens = await authenticateUser('auth@example.com', 'password123');
+      const session = await authenticateUser('auth@example.com', 'password123');
       
-      expect(tokens.accessToken).toBeDefined();
-      expect(tokens.refreshToken).toBeDefined();
+      expect(session.accessToken).toBeDefined();
+      expect(session.refreshToken).toBeDefined();
+      expect(session.user.email).toBe('auth@example.com');
+      expect(session.user.role).toBe('user');
 
-      const decodedAccess = jwt.verify(tokens.accessToken, process.env.JWT_ACCESS_SECRET || 'access_secret') as any;
+      const decodedAccess = jwt.verify(session.accessToken, process.env.JWT_ACCESS_SECRET || 'access_secret') as any;
       expect(decodedAccess.email).toBe('auth@example.com');
       expect(decodedAccess.role).toBe('user');
     });
@@ -82,12 +84,13 @@ describe('Auth Services Unit Tests', () => {
   describe('rotateRefreshToken', () => {
     it('should rotate tokens and mark old token as revoked', async () => {
       await registerUser('rotate@example.com', 'password123');
-      const tokens = await authenticateUser('rotate@example.com', 'password123');
+      const session = await authenticateUser('rotate@example.com', 'password123');
 
-      const rotated = await rotateRefreshToken(tokens.refreshToken);
+      const rotated = await rotateRefreshToken(session.refreshToken);
       expect(rotated.accessToken).toBeDefined();
       expect(rotated.refreshToken).toBeDefined();
-      expect(rotated.refreshToken).not.toBe(tokens.refreshToken);
+      expect(rotated.user.email).toBe('rotate@example.com');
+      expect(rotated.refreshToken).not.toBe(session.refreshToken);
     });
 
     it('should fail with tampered refresh token', async () => {
@@ -97,14 +100,14 @@ describe('Auth Services Unit Tests', () => {
 
     it('should detect token reuse and revoke all user tokens', async () => {
       await registerUser('reuse@example.com', 'password123');
-      const tokens = await authenticateUser('reuse@example.com', 'password123');
+      const session = await authenticateUser('reuse@example.com', 'password123');
 
       // First rotation works
-      const rotated1 = await rotateRefreshToken(tokens.refreshToken);
+      const rotated1 = await rotateRefreshToken(session.refreshToken);
       expect(rotated1.accessToken).toBeDefined();
 
       // Second rotation with SAME old token (reuse/theft attempt!)
-      await expect(rotateRefreshToken(tokens.refreshToken))
+      await expect(rotateRefreshToken(session.refreshToken))
         .rejects.toThrow('Token reuse detected. All sessions revoked.');
 
       // New tokens issued on first rotation should also be revoked/invalid now
