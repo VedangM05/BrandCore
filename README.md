@@ -8,7 +8,7 @@ BrandCore is an enterprise-grade AI-powered brand intelligence, creative campaig
 
 - **Backend Framework**: Node.js, Express, TypeScript
 - **Database & Storage**: PostgreSQL (Relational Metadata & GIN Indexing), AWS S3 / Local Filesystem (Asset Storage)
-- **AI & Agent Orchestration**: Gemini API (`gemini-2.5-flash`), Zod Schema Validation, LangGraph Multi-Agent Parallel Workflow
+- **AI & Agent Orchestration**: Groq API (Llama 3.3/3.1, open-weight models) for copy/QA/chat, Gemini API for knowledge-base embeddings, Zod Schema Validation, LangGraph Multi-Agent Parallel Workflow
 - **Queueing & Async Jobs**: BullMQ, Redis (`ioredis`), Event-driven Lifecycle Monitoring
 - **Caching & Cost Control**: Dual-layer Cache (Exact Redis + Cosine Semantic Similarity Vector Engine $\ge 0.85$), Hard Tier Quota Enforcement Middleware (`free`, `pro`, `enterprise`)
 - **Frontend Architecture**: React (v18), React Router (v6), Tailwind CSS, Vite, Glassmorphism UI
@@ -39,7 +39,7 @@ BrandCore is an enterprise-grade AI-powered brand intelligence, creative campaig
 │   ├── services/                     # Business services
 │   │   ├── auth.service.ts           # Argon2id hashing & JWT token issuing
 │   │   ├── dna.service.ts            # Crawl subprocess runner & parser integration
-│   │   ├── intelligence.service.ts   # Gemini single-call synthesis & Zod validation
+│   │   ├── intelligence.service.ts   # Groq single-call synthesis & Zod validation
 │   │   ├── creative.service.ts       # LangGraph multi-agent parallel execution workflow
 │   │   ├── cache.service.ts          # Exact & Cosine vector similarity semantic cache
 │   │   ├── quota.service.ts          # Tier limit tracking & billing recording
@@ -147,7 +147,7 @@ npm run start
 - **Engine**: Python Crawl4AI subprocess parsing DOM text hierarchies and Pillow (PIL) + NumPy extracting color palettes and logos.
 
 ### 4. Brand Intelligence (Brand DNA)
-- **Synthesis**: Single optimized Gemini API call (`gemini-2.5-flash`) with local heuristics fallback.
+- **Synthesis**: Single optimized Groq API call (Llama 3.3 70B, with model fallbacks) with local heuristics fallback.
 - **Validation**: Enforces 100% Zod schema validation (`BrandDnaSchema`).
 
 ### 5. Creative Generation Pipeline
