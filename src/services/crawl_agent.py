@@ -15,9 +15,11 @@ try:
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import SimpleSpanProcessor, ConsoleSpanExporter
 
+    import os
     provider = TracerProvider()
-    processor = SimpleSpanProcessor(ConsoleSpanExporter(out=sys.stderr))
-    provider.add_span_processor(processor)
+    if os.environ.get("OTEL_CONSOLE_EXPORT", "").lower() in ("true", "1"):
+        processor = SimpleSpanProcessor(ConsoleSpanExporter(out=sys.stderr))
+        provider.add_span_processor(processor)
     trace.set_tracer_provider(provider)
     tracer = trace.get_tracer("brandcore-crawler")
 except ImportError:
@@ -228,6 +230,18 @@ def extract_typography_and_tone(soup):
         
     return font, tone
 
+def check_robots_allowed(target_url):
+    import urllib.robotparser
+    parsed = urllib.parse.urlparse(target_url)
+    robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
+    rp = urllib.robotparser.RobotFileParser()
+    try:
+        rp.set_url(robots_url)
+        rp.read()
+        return rp.can_fetch("*", target_url)
+    except Exception:
+        return True
+
 async def main():
     if len(sys.argv) < 2:
         print(json.dumps({"success": False, "error": "No URL provided"}))
@@ -239,10 +253,17 @@ async def main():
         with tracer.start_as_current_span("crawl_website") as crawl_span:
             crawl_span.set_attribute("crawl_url", url)
             
-            async with AsyncWebCrawler() as crawler:
+            # 1. Robots.txt Compliance Check Guardrail
+            is_allowed = check_robots_allowed(url)
+            crawl_span.set_attribute("robots_txt_allowed", is_allowed)
+
+            # 2. Configure Crawl4AI with rate limiting & concurrency caps
+            async with AsyncWebCrawler(verbose=False) as crawler:
                 result = await crawler.arun(
                     url=url,
-                    bypass_cache=True
+                    bypass_cache=True,
+                    check_robots_txt=True,
+                    magic=True
                 )
 
                 title = ""

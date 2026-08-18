@@ -3,9 +3,11 @@ import http from 'http';
 import app from '../src/app';
 import { initializeDatabase, cleanDatabase, closeDatabase, query } from '../src/db';
 import { BrandDnaSchema } from '../src/services/intelligence.service';
+import { getTestAuthHeader } from './helpers/testAuth';
 
 describe('Brand DNA Intelligence API Integration Tests', () => {
   let server: http.Server;
+  let authHeader: string;
   const latencies: number[] = [];
 
   beforeAll(async () => {
@@ -96,6 +98,11 @@ describe('Brand DNA Intelligence API Integration Tests', () => {
 
   beforeEach(async () => {
     await cleanDatabase();
+    // Must re-authenticate after cleanDatabase() reseeds users with fresh
+    // ids - a token captured once in beforeAll would carry a userId that no
+    // longer exists in the users table, which the DNA scan now writes as a
+    // real FK (crawl_jobs.user_id) rather than an unused/unenforced column.
+    authHeader = await getTestAuthHeader();
   });
 
   afterAll(async () => {
@@ -124,6 +131,7 @@ describe('Brand DNA Intelligence API Integration Tests', () => {
       const startTime = Date.now();
       const res = await request(app)
         .post('/api/dna/scan')
+        .set('Authorization', authHeader)
         .send({ url });
       
       const duration = Date.now() - startTime;

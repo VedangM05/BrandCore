@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { trace, SpanStatusCode } from '@opentelemetry/api';
+import { callGroqJSON, GROQ_TEXT_MODELS } from './groq.service';
 
 const tracer = trace.getTracer('brandcore-intelligence-service');
 
@@ -30,27 +31,35 @@ export interface CrawlData {
 }
 
 /**
- * Synthesizes crawled text, headings, and visual attributes into a Zod-validated Brand DNA model.
- * Performs a single optimized LLM call chain if GEMINI_API_KEY is configured,
+ * Synthesizes crawled text, headings, and visual attributes into a
+ * Zod-validated Brand DNA model. Performs a real LLM call chain via Groq
+ * (HANDOFF.md §21 - previously Gemini) if GROQ_API_KEY is configured,
  * otherwise falls back to a deterministic, local heuristic compiler.
+ *
+ * Unlike the old Gemini version, this doesn't use a provider-specific
+ * structured-output schema (Gemini's `responseSchema` isn't something
+ * Groq's OpenAI-compatible API offers) - instead it asks for JSON mode
+ * (see groq.service.ts) and validates the parsed result against
+ * `BrandDnaSchema` itself, exactly like every other JSON-mode call site in
+ * this codebase (creative.service.ts) already does. A validation failure
+ * (malformed JSON, a missing/invalid field) is treated the same as an
+ * outright API failure - fall back to the local heuristic compiler rather
+ * than surface a half-synthesized Brand DNA.
  */
 export async function synthesizeBrandDna(crawlData: CrawlData): Promise<BrandDna> {
   return tracer.startActiveSpan('brand_intelligence_synthesis', async (span) => {
     span.setAttribute('dna.url', crawlData.url);
     span.setAttribute('dna.title', crawlData.title);
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
 
     if (apiKey) {
       span.setAttribute('intelligence.execution_mode', 'llm');
-      
-      // Execute structured single-call Gemini LLM request
-      return tracer.startActiveSpan('gemini_api_request', async (llmSpan) => {
-        llmSpan.setAttribute('llm.provider', 'google');
-        llmSpan.setAttribute('llm.model', 'gemini-2.5-flash');
 
-        try {
-          const prompt = `
+      return tracer.startActiveSpan('groq_api_request', async (llmSpan) => {
+        llmSpan.setAttribute('llm.provider', 'groq');
+
+        const prompt = `
 You are a Brand Intelligence engine for BrandCore.
 Analyze the following crawled website metadata, headings, paragraphs, and visual attributes to synthesize a unified brand positioning matrix.
 
@@ -67,11 +76,11 @@ ${JSON.stringify(crawlData.dom_hierarchy)}
 Website Body Markdown (excerpt):
 ${crawlData.markdown.slice(0, 4000)}
 
-Please output a strictly-validated brand DNA JSON matching this structure:
+Respond ONLY with a valid JSON object (no markdown, no code blocks) matching this structure:
 {
   "brandName": "Short brand name",
   "tagline": "A compelling, catchy brand tagline",
-  "colors": ["Hex code #1", "Hex code #2", "etc."], // must be valid hex, min 2 colors
+  "colors": ["Hex code #1", "Hex code #2", "etc."],
   "fontPairing": "Header Font & Body Font pairings",
   "tone": "Brief description of brand voice and tone",
   "mission": "Unified core mission statement of the brand",
@@ -80,92 +89,51 @@ Please output a strictly-validated brand DNA JSON matching this structure:
 }
 `;
 
-          const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                  responseMimeType: 'application/json',
-                  responseSchema: {
-                    type: 'OBJECT',
-                    properties: {
-                      brandName: { type: 'STRING' },
-                      tagline: { type: 'STRING' },
-                      colors: {
-                        type: 'ARRAY',
-                        items: { type: 'STRING' }
-                      },
-                      fontPairing: { type: 'STRING' },
-                      tone: { type: 'STRING' },
-                      mission: { type: 'STRING' },
-                      audience: { type: 'STRING' },
-                      valueProposition: { type: 'STRING' }
-                    },
-                    required: ['brandName', 'tagline', 'colors', 'fontPairing', 'tone', 'mission', 'audience', 'valueProposition']
-                  }
-                }
-              })
-            }
-          );
+        // Rough character-to-token estimate for logging only (Groq's free
+        // tier has no real dollar cost - see creative.service.ts's note on
+        // estimatedCostUsd for why this is kept as a usage proxy, not a
+        // real bill).
+        const inputTokens = Math.ceil(prompt.length / 4);
 
-          if (!response.ok) {
-            throw new Error(`Gemini API call failed with status: ${response.status}`);
-          }
+        const validated = await callGroqJSON<BrandDna>(prompt, {
+          models: GROQ_TEXT_MODELS,
+          temperature: 0.4,
+          logLabel: `brand DNA synthesis for ${crawlData.title || crawlData.url}`,
+          validate: (parsed) => {
+            const result = BrandDnaSchema.safeParse(parsed);
+            return result.success ? result.data : null;
+          },
+        });
 
-          const responseData = await response.json();
-          const jsonText = responseData.candidates?.[0]?.content?.parts?.[0]?.text;
-          
-          if (!jsonText) {
-            throw new Error('Empty or invalid output received from Gemini API');
-          }
-
-          const parsed = JSON.parse(jsonText);
-          
-          // Validate structure strictly against Zod
-          const validated = BrandDnaSchema.parse(parsed);
-
-          // Estimate API tokens (crude characters-to-tokens count for logging / cost reduction check)
-          const inputTokens = Math.ceil(prompt.length / 4);
-          const outputTokens = Math.ceil(jsonText.length / 4);
-          const cost = (inputTokens * 0.075 / 1000000) + (outputTokens * 0.30 / 1000000);
-          
-          console.log(`[LLM COST] Input Tokens: ${inputTokens}, Output Tokens: ${outputTokens}, Est. Cost: $${cost.toFixed(6)}`);
-          
+        if (validated) {
+          const outputTokens = Math.ceil(JSON.stringify(validated).length / 4);
+          console.log(`[LLM COST] Input Tokens: ${inputTokens}, Output Tokens: ${outputTokens} (Groq free tier - $0 real cost)`);
           llmSpan.setAttribute('llm.input_tokens', inputTokens);
           llmSpan.setAttribute('llm.output_tokens', outputTokens);
-          llmSpan.setAttribute('llm.cost_usd', cost);
           llmSpan.setStatus({ code: SpanStatusCode.OK });
-
           span.setStatus({ code: SpanStatusCode.OK });
-          return validated;
-
-        } catch (error: any) {
-          llmSpan.recordException(error);
-          llmSpan.setStatus({
-            code: SpanStatusCode.ERROR,
-            message: error.message || 'LLM Synthesis failed'
-          });
-          // Fall back to local compiler if LLM request fails to ensure no pipeline crash
-          console.warn('[Intelligence] LLM Synthesis failed. Falling back to local heuristic compiler.', error.message);
-          const fallbackVal = executeLocalFallback(crawlData);
-          span.setStatus({ code: SpanStatusCode.OK });
-          return fallbackVal;
-        } finally {
           llmSpan.end();
+          return validated;
         }
+
+        // No GROQ_API_KEY at call time (race with env reload), every model
+        // failed, or the parsed JSON didn't validate against the schema -
+        // fall back to the local compiler rather than crash the scan.
+        console.warn('[Intelligence] Groq synthesis failed or returned invalid data. Falling back to local heuristic compiler.');
+        llmSpan.setStatus({ code: SpanStatusCode.ERROR, message: 'Groq synthesis failed or returned invalid data' });
+        llmSpan.end();
+        const fallbackVal = executeLocalFallback(crawlData);
+        span.setStatus({ code: SpanStatusCode.OK });
+        return fallbackVal;
       });
     } else {
       // Execution mode is fallback
       span.setAttribute('intelligence.execution_mode', 'local_fallback');
-      console.log('[Intelligence] GEMINI_API_KEY not configured. Executing local heuristic synthesis compiler.');
-      
+      console.log('[Intelligence] GROQ_API_KEY not configured. Executing local heuristic synthesis compiler.');
+
       const validated = executeLocalFallback(crawlData);
-      
-      console.log(`[LLM COST] Input Tokens: 0, Output Tokens: 0, Est. Cost: $0.000000 (Local Heuristics Fallback - 100% savings)`);
-      span.setAttribute('llm.cost_usd', 0);
+
+      console.log(`[LLM COST] Input Tokens: 0, Output Tokens: 0 (Local Heuristics Fallback)`);
       span.setStatus({ code: SpanStatusCode.OK });
       return validated;
     }
@@ -176,7 +144,7 @@ function executeLocalFallback(crawlData: CrawlData): BrandDna {
   // Direct text/keyword-based synthesis compiler matching Zod specifications
   const rawTitle = crawlData.title || '';
   const cleanTitle = rawTitle.split(/[-|•]/)[0].trim() || 'BrandCore Partner';
-  
+
   // Tagline extraction
   let tagline = 'Empowering modern business growth and innovation.';
   if (crawlData.meta_description) {
@@ -202,7 +170,7 @@ function executeLocalFallback(crawlData: CrawlData): BrandDna {
     const matched = c.match(/^#[0-9a-fA-F]{6}$/);
     return matched ? c : '#4f46e5';
   });
-  
+
   while (colors.length < 2) {
     colors.push(colors.length === 0 ? '#4f46e5' : '#f97316');
   }

@@ -1,6 +1,13 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import gsap from 'gsap';
+import { useGSAP } from '@gsap/react';
 import { DnaResults } from '../../types';
 import { Spinner } from '../ui/Spinner';
+import { CheckIcon, CloseIcon } from '../icons';
+import { useProject } from '../../context/ProjectContext';
+import { prefersReducedMotion } from '../../lib/motion';
+import { updateBrandDna } from '../../api/client';
+import { BrandChatPanel } from '../dna/BrandChatPanel';
 
 interface BusinessDnaViewProps {
   websiteUrl: string;
@@ -8,6 +15,35 @@ interface BusinessDnaViewProps {
   results: DnaResults | null;
   onUrlChange: (value: string) => void;
   onScan: (e: React.FormEvent) => void;
+  /** Called after a successful correction is saved, so the parent can keep its copy and the active project in sync. */
+  onDnaUpdated?: (updated: DnaResults) => void;
+}
+
+const CHECKLIST = [
+  'Primary and accent color swatches',
+  'Typography and font pairing',
+  'Tone of voice and mission',
+  'Target audience and value proposition',
+];
+
+const HEX_PATTERN = /^#[0-9a-fA-F]{6}$/;
+
+interface EditableDna {
+  brandName: string;
+  tagline: string;
+  tone: string;
+  font: string;
+  colors: string[];
+}
+
+function toEditable(results: DnaResults): EditableDna {
+  return {
+    brandName: results.brandName,
+    tagline: results.tagline || '',
+    tone: results.tone,
+    font: results.font,
+    colors: [...results.colors],
+  };
 }
 
 export const BusinessDnaView: React.FC<BusinessDnaViewProps> = ({
@@ -16,9 +52,30 @@ export const BusinessDnaView: React.FC<BusinessDnaViewProps> = ({
   results,
   onUrlChange,
   onScan,
+  onDnaUpdated,
 }) => {
   const [copiedHex, setCopiedHex] = useState<string | null>(null);
   const [appliedToWorkspace, setAppliedToWorkspace] = useState(false);
+  const { addScannedBrand } = useProject();
+  const resultsRef = useRef<HTMLDivElement>(null);
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState<EditableDna | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useGSAP(
+    () => {
+      if (!results || prefersReducedMotion() || !resultsRef.current) return;
+      gsap.fromTo(
+        resultsRef.current,
+        { opacity: 0, y: 12 },
+        { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }
+      );
+    },
+    { dependencies: [results?.brandName] }
+  );
 
   const handleCopyHex = (color: string) => {
     navigator.clipboard?.writeText(color);
@@ -27,30 +84,113 @@ export const BusinessDnaView: React.FC<BusinessDnaViewProps> = ({
   };
 
   const handleApplyDna = () => {
+    if (results && websiteUrl) {
+      addScannedBrand({
+        id: results.id,
+        url: websiteUrl,
+        brandName: results.brandName,
+        colors: results.colors,
+        font: results.font,
+        tone: results.tone,
+        tagline: results.tagline,
+      });
+    }
     setAppliedToWorkspace(true);
     setTimeout(() => setAppliedToWorkspace(false), 3000);
+  };
+
+  const handleStartEdit = () => {
+    if (!results) return;
+    setDraft(toEditable(results));
+    setSaveError(null);
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setDraft(null);
+    setSaveError(null);
+  };
+
+  const updateDraftColor = (index: number, value: string) => {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const colors = [...prev.colors];
+      colors[index] = value;
+      return { ...prev, colors };
+    });
+  };
+
+  const addDraftColor = () => {
+    setDraft((prev) => (prev ? { ...prev, colors: [...prev.colors, '#17160F'] } : prev));
+  };
+
+  const removeDraftColor = (index: number) => {
+    setDraft((prev) => (prev ? { ...prev, colors: prev.colors.filter((_, i) => i !== index) } : prev));
+  };
+
+  const handleSaveEdit = async () => {
+    if (!draft || !results?.id) return;
+
+    const cleanedColors = draft.colors.map((c) => c.trim()).filter(Boolean);
+    if (cleanedColors.length === 0 || !cleanedColors.every((c) => HEX_PATTERN.test(c))) {
+      setSaveError('Every color must be a valid 6-digit hex value (e.g. #1F3B33).');
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await updateBrandDna(results.id, {
+        title: draft.brandName,
+        tagline: draft.tagline,
+        tone: draft.tone,
+        font_pairings: draft.font,
+        colors: cleanedColors,
+      });
+
+      const updatedResults: DnaResults = {
+        id: results.id,
+        brandName: draft.brandName,
+        tagline: draft.tagline,
+        tone: draft.tone,
+        font: draft.font,
+        colors: cleanedColors,
+      };
+      onDnaUpdated?.(updatedResults);
+      setIsEditing(false);
+      setDraft(null);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err: unknown) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save your corrections');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
     <div className="space-y-8">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">Brand foundation</p>
-        <h2 className="text-2xl font-bold text-slate-900 mt-1">Business DNA Matrix</h2>
-        <p className="text-sm text-slate-600 mt-1 max-w-2xl">
-          Import your web presence to synthesize an AI brand positioning profile — colors, typography, voice guidelines, and positioning matrix for every campaign.
+        <p className="text-xs font-medium uppercase tracking-wide text-brand-muted">Brand foundation</p>
+        <h2 className="font-display text-3xl tracking-tighter text-brand-text mt-1">Business DNA</h2>
+        <p className="text-sm text-brand-muted mt-1.5 max-w-2xl leading-relaxed">
+          Scan a website to extract its colors, typography, tone, and positioning — then reuse that
+          profile for every campaign.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
         <div className="lg:col-span-3 panel p-6 space-y-6">
-          <div className="flex items-start gap-4">
-            <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-sm font-bold shrink-0 shadow-md">
+          <div className="flex items-start gap-3.5">
+            <div className="w-7 h-7 rounded-md bg-brand-ink text-brand-bg flex items-center justify-center text-xs font-semibold shrink-0">
               1
             </div>
             <div>
-              <h3 className="font-bold text-slate-900 text-base">Connect Website or Domain</h3>
-              <p className="text-sm text-slate-600 mt-1">
-                Our vision & DOM analysis pipeline fetches raw markup, isolates dominant colors, and extracts tone signals.
+              <h3 className="font-semibold text-brand-text text-[15px]">Connect a website or domain</h3>
+              <p className="text-sm text-brand-muted mt-1 leading-relaxed">
+                The crawler fetches the page, isolates dominant colors from the logo, and reads tone
+                signals from the copy.
               </p>
             </div>
           </div>
@@ -65,143 +205,274 @@ export const BusinessDnaView: React.FC<BusinessDnaViewProps> = ({
               className="input-field flex-1"
             />
             <button type="submit" disabled={isScanning} className="btn-primary shrink-0 px-6">
-              {isScanning ? 'Scanning...' : 'Scan DNA'}
+              {isScanning ? 'Scanning…' : 'Scan DNA'}
             </button>
           </form>
 
           {isScanning && (
-            <div className="py-10 border-t border-slate-200">
-              <Spinner label="Analyzing brand colors, fonts, and brand voice..." />
+            <div className="py-8 border-t border-brand-border">
+              <Spinner label="Crawling pages and analyzing colors, fonts, and brand voice — this can take a couple of minutes on larger sites…" />
             </div>
           )}
         </div>
 
-        <div className="lg:col-span-2 panel p-6 bg-slate-50 border-slate-200">
-          <h3 className="font-bold text-slate-900 mb-4 text-base">Extracted Intelligence Matrix</h3>
-          <ul className="space-y-3.5 text-sm text-slate-700">
-            <li className="flex items-center gap-3">
-              <span className="w-2 h-2 rounded-full bg-indigo-600 shrink-0" />
-              Primary & Accent Color Swatches
-            </li>
-            <li className="flex items-center gap-3">
-              <span className="w-2 h-2 rounded-full bg-sky-600 shrink-0" />
-              Typography Hierarchy & Font Pairings
-            </li>
-            <li className="flex items-center gap-3">
-              <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0" />
-              Tone of Voice Descriptors & Mission
-            </li>
-            <li className="flex items-center gap-3">
-              <span className="w-2 h-2 rounded-full bg-amber-600 shrink-0" />
-              Target Audience & Value Proposition
-            </li>
+        <div className="lg:col-span-2 panel p-6 bg-brand-sunken">
+          <h3 className="font-semibold text-brand-text mb-3.5 text-[15px]">What gets extracted</h3>
+          <ul className="space-y-3 text-sm text-brand-text/85">
+            {CHECKLIST.map((item) => (
+              <li key={item} className="flex items-start gap-2.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-brand-primary shrink-0 mt-1.5" />
+                {item}
+              </li>
+            ))}
           </ul>
         </div>
       </div>
 
       {results && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-slate-900">Synthesized Profile for {results.brandName}</h3>
-            <button
-              type="button"
-              onClick={handleApplyDna}
-              className="btn-primary text-xs py-2 px-4"
-            >
-              {appliedToWorkspace ? '✓ Active Brand DNA Set' : 'Apply DNA to Campaign Engine'}
-            </button>
+        <div ref={resultsRef} className="space-y-5">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <h3 className="font-display text-2xl tracking-tight text-brand-text">
+              Profile for {results.brandName}
+            </h3>
+            <div className="flex items-center gap-2">
+              {saved && !isEditing && (
+                <span className="text-xs font-medium text-state-success-text bg-state-success px-2.5 py-1 rounded-md inline-flex items-center gap-1.5">
+                  <CheckIcon className="w-3.5 h-3.5" />
+                  Saved
+                </span>
+              )}
+              {!isEditing && (
+                <button
+                  type="button"
+                  onClick={handleStartEdit}
+                  disabled={!results.id}
+                  title={results.id ? undefined : 'Re-scan to enable editing for this profile'}
+                  className="btn-secondary text-xs py-2 px-4 disabled:opacity-50"
+                >
+                  Edit
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleApplyDna}
+                className="btn-primary text-xs py-2 px-4 inline-flex items-center gap-1.5"
+              >
+                {appliedToWorkspace ? (
+                  <>
+                    <CheckIcon className="w-3.5 h-3.5" />
+                    <span>Applied</span>
+                  </>
+                ) : (
+                  <span>Apply to campaigns</span>
+                )}
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Style Kit Card */}
+          <p className="text-xs text-brand-muted -mt-2 max-w-2xl leading-relaxed">
+            Automated extraction gets most of this right, but not always all of it — review the colors,
+            tone, and font below and correct anything that's off before generating campaigns from it.
+          </p>
+
+          {isEditing && draft ? (
             <div className="panel p-6 space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                <h4 className="font-bold text-slate-900">Visual Style Kit</h4>
-                <span className="tag bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  Extracted
-                </span>
+              <div className="flex items-center justify-between border-b border-brand-border pb-3">
+                <h4 className="font-semibold text-brand-text text-sm">Editing Business DNA</h4>
+                <span className="tag bg-brand-primary-soft text-brand-primary-soft-text">Unsaved changes</span>
+              </div>
+
+              {saveError && (
+                <div role="alert" className="rounded-md bg-state-danger border border-[#F3C6C6] text-state-danger-text text-sm px-4 py-3">
+                  {saveError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="text-xs font-medium uppercase tracking-wide text-brand-muted block mb-1.5">
+                    Brand name
+                  </label>
+                  <input
+                    type="text"
+                    value={draft.brandName}
+                    onChange={(e) => setDraft({ ...draft, brandName: e.target.value })}
+                    className="input-field text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium uppercase tracking-wide text-brand-muted block mb-1.5">
+                    Tagline
+                  </label>
+                  <input
+                    type="text"
+                    value={draft.tagline}
+                    onChange={(e) => setDraft({ ...draft, tagline: e.target.value })}
+                    placeholder="One-line tagline"
+                    className="input-field text-sm"
+                  />
+                </div>
               </div>
 
               <div>
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 block mb-3">
-                  Color Palette (Click Hex to Copy)
-                </span>
-                <div className="grid grid-cols-4 gap-3">
-                  {results.colors.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => handleCopyHex(color)}
-                      className="group text-center focus:outline-none"
-                    >
-                      <div
-                        className="w-full h-14 rounded-xl border border-slate-300 shadow-sm group-hover:scale-105 transition-transform relative flex items-center justify-center"
-                        style={{ backgroundColor: color }}
+                <label className="text-xs font-medium uppercase tracking-wide text-brand-muted block mb-1.5">
+                  Typography pairing
+                </label>
+                <input
+                  type="text"
+                  value={draft.font}
+                  onChange={(e) => setDraft({ ...draft, font: e.target.value })}
+                  className="input-field text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-medium uppercase tracking-wide text-brand-muted block mb-1.5">
+                  Tone of voice
+                </label>
+                <textarea
+                  value={draft.tone}
+                  onChange={(e) => setDraft({ ...draft, tone: e.target.value })}
+                  rows={3}
+                  className="input-field text-sm"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-medium uppercase tracking-wide text-brand-muted">
+                    Color palette
+                  </label>
+                  <button type="button" onClick={addDraftColor} className="text-xs font-medium text-brand-primary hover:underline">
+                    + Add color
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {draft.colors.map((color, index) => (
+                    <div key={index} className="flex items-center gap-1.5 rounded-md border border-brand-border bg-brand-sunken p-2">
+                      <input
+                        type="color"
+                        value={HEX_PATTERN.test(color) ? color : '#000000'}
+                        onChange={(e) => updateDraftColor(index, e.target.value)}
+                        className="w-8 h-8 rounded border border-brand-border cursor-pointer bg-transparent"
+                        aria-label={`Color swatch ${index + 1}`}
+                      />
+                      <input
+                        type="text"
+                        value={color}
+                        onChange={(e) => updateDraftColor(index, e.target.value)}
+                        className="w-20 text-xs font-mono bg-transparent border-none focus:outline-none text-brand-text"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeDraftColor(index)}
+                        aria-label="Remove color"
+                        disabled={draft.colors.length <= 1}
+                        className="text-brand-faint hover:text-state-danger-text disabled:opacity-30 transition-colors"
                       >
-                        {copiedHex === color && (
-                          <span className="text-[10px] font-bold bg-slate-900 text-white px-2 py-0.5 rounded shadow">
-                            Copied!
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-[11px] font-mono text-slate-600 group-hover:text-slate-900 mt-1.5 block">
-                        {color}
-                      </span>
-                    </button>
+                        <CloseIcon className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>
 
-              <div className="pt-2">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 block mb-2">
-                  Typography Pairing
-                </span>
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-3 pt-2 border-t border-brand-border">
+                <button
+                  type="button"
+                  onClick={handleSaveEdit}
+                  disabled={isSaving}
+                  className="btn-primary px-5 py-2 text-sm inline-flex items-center gap-2"
+                >
+                  <CheckIcon className="w-4 h-4" />
+                  {isSaving ? 'Saving…' : 'Save corrections'}
+                </button>
+                <button type="button" onClick={handleCancelEdit} className="btn-secondary px-4 py-2 text-sm inline-flex items-center gap-2">
+                  <CloseIcon className="w-4 h-4" />
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="panel p-6 space-y-5">
+                <div className="flex items-center justify-between border-b border-brand-border pb-3">
+                  <h4 className="font-semibold text-brand-text text-sm">Visual style kit</h4>
+                  <span className="tag bg-brand-primary-soft text-brand-primary-soft-text">Extracted</span>
+                </div>
+
+                <div>
+                  <span className="text-xs font-medium uppercase tracking-wide text-brand-muted block mb-2.5">
+                    Color palette &middot; click to copy
+                  </span>
+                  <div className="grid grid-cols-4 gap-2.5">
+                    {results.colors.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => handleCopyHex(color)}
+                        className="group text-center focus:outline-none"
+                      >
+                        <div
+                          className="w-full h-12 rounded-md border border-brand-border relative flex items-center justify-center transition-transform group-hover:scale-105"
+                          style={{ backgroundColor: color }}
+                        >
+                          {copiedHex === color && (
+                            <span className="text-[10px] font-semibold bg-brand-ink text-brand-bg px-1.5 py-0.5 rounded">
+                              Copied
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] font-mono text-brand-muted group-hover:text-brand-text mt-1.5 block">
+                          {color}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-1">
+                  <span className="text-xs font-medium uppercase tracking-wide text-brand-muted block mb-2">
+                    Typography pairing
+                  </span>
+                  <div className="p-3.5 rounded-md bg-brand-sunken border border-brand-border">
+                    <p className="text-sm font-semibold text-brand-text">{results.font}</p>
+                    <p className="text-xs text-brand-muted mt-0.5">Header and body font system</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="panel p-6 space-y-5">
+                <div className="flex items-center justify-between border-b border-brand-border pb-3">
+                  <h4 className="font-semibold text-brand-text text-sm">Voice and identity</h4>
+                  <span className="tag bg-state-success text-state-success-text">Validated</span>
+                </div>
+
+                <div className="space-y-4">
                   <div>
-                    <p className="text-sm font-bold text-slate-900">{results.font}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">Heading & Body Font System</p>
+                    <span className="text-xs font-medium uppercase tracking-wide text-brand-muted block mb-1.5">
+                      Tone of voice
+                    </span>
+                    <p className="text-sm text-brand-text bg-brand-sunken p-3.5 rounded-md border border-brand-border leading-relaxed">
+                      {results.tone}
+                    </p>
                   </div>
-                  <span className="text-xs text-indigo-700 font-semibold bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200">
-                    Optimal Contrast
-                  </span>
-                </div>
-              </div>
-            </div>
 
-            {/* Voice & Identity Profile Card */}
-            <div className="panel p-6 space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                <h4 className="font-bold text-slate-900">Voice & Brand Identity</h4>
-                <span className="tag bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  Validated
-                </span>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 block mb-1">
-                    Tone of Voice
-                  </span>
-                  <p className="text-sm text-slate-800 bg-slate-50 p-3.5 rounded-xl border border-slate-200 leading-relaxed font-medium">
-                    {results.tone}
-                  </p>
-                </div>
-
-                <div>
-                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 block mb-1">
-                    Detected Brand Identity
-                  </span>
-                  <div className="p-3.5 rounded-xl bg-indigo-50/50 border border-indigo-100 flex items-center justify-between">
-                    <div>
-                      <p className="text-lg font-bold text-indigo-900">{results.brandName}</p>
-                      <p className="text-xs text-slate-600">Positioning matrix synced across workspace</p>
+                  <div>
+                    <span className="text-xs font-medium uppercase tracking-wide text-brand-muted block mb-1.5">
+                      Detected brand
+                    </span>
+                    <div className="p-3.5 rounded-md bg-brand-primary-soft border border-brand-border">
+                      <p className="text-lg font-display tracking-tight text-brand-primary-soft-text">{results.brandName}</p>
+                      {results.tagline && <p className="text-xs text-brand-muted mt-0.5">{results.tagline}</p>}
                     </div>
-                    <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
+
+          {results.id && <BrandChatPanel brandDnaId={results.id} brandName={results.brandName} />}
         </div>
       )}
     </div>
