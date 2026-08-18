@@ -38,7 +38,13 @@ module.exports = {
       ],
       setupFilesAfterEnv: ['<rootDir>/tests/frontend/setup.ts'],
       moduleNameMapper: {
-        '\\.(css|less|sass|scss)$': 'identity-obj-proxy'
+        '\\.(css|less|sass|scss)$': 'identity-obj-proxy',
+        // konva ships ESM that Jest can't parse from node_modules, and jsdom has no
+        // real <canvas> 2D context anyway - canvas pixel content isn't assertable
+        // via RTL, so the editor's canvas layer is mocked; its real (non-canvas)
+        // controls are tested directly. See tests/frontend/mocks/*.
+        '^react-konva$': '<rootDir>/tests/frontend/mocks/reactKonvaMock.tsx',
+        '^konva$': '<rootDir>/tests/frontend/mocks/konvaMock.ts'
       },
       collectCoverageFrom: [
         'src/frontend/src/**/*.{ts,tsx}',

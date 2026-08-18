@@ -61,7 +61,9 @@ describe('DashboardShell Integration & Component Tests', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Project One' })).toBeInTheDocument();
     expect(screen.getByText('Desc One')).toBeInTheDocument();
-    expect(screen.getByText(/BrandCore Systems/i)).toBeInTheDocument();
+    expect(
+      screen.getByText((content, element) => element?.tagName.toLowerCase() === 'span' && /© \d{4} BrandCore/.test(content))
+    ).toBeInTheDocument();
     expect(screen.getByText('test@example.com')).toBeInTheDocument();
   });
 
@@ -87,15 +89,17 @@ describe('DashboardShell Integration & Component Tests', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/login', { replace: true });
   });
 
-  test('should render 100 dummy elements in active workspace for performance benchmark', () => {
+  test('should render the real (empty) asset library state when no assets exist yet', async () => {
     renderShell();
 
     const libraryLink = screen.getByRole('link', { name: /Assets Library/i });
     fireEvent.click(libraryLink);
 
-    const cards = screen.getAllByTestId('dummy-card');
-    expect(cards).toHaveLength(100);
-    expect(screen.getByText(/Rendering 100 elements/i)).toBeInTheDocument();
+    // No assets are seeded/mocked for this test's API layer, so the library
+    // should show its genuine empty state rather than any placeholder grid -
+    // the view used to render 100 fake cards regardless of real data.
+    expect(await screen.findByText(/No assets yet/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('asset-card')).not.toBeInTheDocument();
   });
 
   test('should render global error banner layout variant on error state', () => {
@@ -145,7 +149,7 @@ describe('DashboardShell Integration & Component Tests', () => {
     fireEvent.click(scanButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/Analyzing brand colors/i)).toBeInTheDocument();
+      expect(screen.getByText(/analyzing colors, fonts, and brand voice/i)).toBeInTheDocument();
     });
 
     await act(async () => {
@@ -153,7 +157,7 @@ describe('DashboardShell Integration & Component Tests', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('NIKE')).toBeInTheDocument();
+      expect(screen.getAllByText('NIKE')[0]).toBeInTheDocument();
     });
 
     expect(screen.getByText('Modern, Professional, and Innovative')).toBeInTheDocument();
@@ -161,8 +165,28 @@ describe('DashboardShell Integration & Component Tests', () => {
     (global as any).fetch = originalFetch;
   });
 
-  test('should render and interact with the AI Photoshoot tab', () => {
-    jest.useFakeTimers();
+  test('should render a real generated image on the AI Photoshoot tab', async () => {
+    (global as any).URL.createObjectURL = jest.fn(() => 'blob:mock-preview-url');
+    (global as any).URL.revokeObjectURL = jest.fn();
+
+    const originalFetch = (global as any).fetch;
+    const mockFetch = jest.fn().mockImplementation((url: string) => {
+      if (typeof url === 'string' && url.startsWith('/api/photoshoot/image')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, asset: { id: 'asset-1', name: 'Leather stand scene' } }),
+        });
+      }
+      if (typeof url === 'string' && url.includes('/download')) {
+        return Promise.resolve({
+          ok: true,
+          blob: () => Promise.resolve(new Blob(['fake-image-bytes'], { type: 'image/jpeg' })),
+        });
+      }
+      return Promise.reject(new Error(`Unexpected fetch: ${url}`));
+    });
+    (global as any).fetch = mockFetch;
+
     renderShell();
 
     const photoshootLink = screen.getByRole('link', { name: /AI Photoshoot/i });
@@ -175,27 +199,66 @@ describe('DashboardShell Integration & Component Tests', () => {
     fireEvent.change(promptInput, { target: { value: 'on a luxury leather stand' } });
 
     const renderButton = screen.getByRole('button', { name: /Render Product Scene/i });
-    fireEvent.click(renderButton);
-
-    expect(screen.getByText(/Rendering product photoshoot/i)).toBeInTheDocument();
-
-    act(() => {
-      jest.advanceTimersByTime(1200);
+    await act(async () => {
+      fireEvent.click(renderButton);
     });
 
-    expect(screen.getByText('Render Successful')).toBeInTheDocument();
-    expect(screen.getByText(/Generated a high-fidelity image using the "In Use" theme/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/photoshoot/image',
+        expect.objectContaining({ method: 'POST' })
+      );
+    });
 
-    jest.useRealTimers();
+    // The result renders as an editable AssetEditor (canvas-based), not a plain
+    // <img> - assert its real (non-canvas) controls mounted instead.
+    await waitFor(() => {
+      expect(screen.getByTestId('asset-editor-stage')).toBeInTheDocument();
+      expect(screen.getByText('Filters')).toBeInTheDocument();
+      expect(screen.getByText('+ Add text')).toBeInTheDocument();
+    });
+
+    (global as any).fetch = originalFetch;
   });
 
-  test('should render and interact with the Campaign Creator tab', () => {
+  test('should generate a real campaign brief on the Campaigns tab via the creative API', async () => {
+    const mockGenerateResponse = {
+      copy: {
+        headline: 'Launch Day Is Here',
+        bodyText: 'Everything your team needs, in one workspace.',
+        socialCopy: 'We just launched. Come see. 🚀',
+      },
+      qa: { score: 95 },
+    };
+
+    const originalFetch = (global as any).fetch;
+    const mockFetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockGenerateResponse),
+    } as Response);
+    (global as any).fetch = mockFetch;
+
     renderShell();
 
-    const campaignLink = screen.getByRole('link', { name: /AI Brief Writer/i });
-    fireEvent.click(campaignLink);
+    // Campaigns is the default tab - the generator form should already be visible.
+    const promptInput = screen.getByPlaceholderText(/Announce new product release/i);
+    fireEvent.change(promptInput, { target: { value: 'Announce our new dashboard' } });
 
-    expect(screen.getByText('Campaign Ad Copy Planner')).toBeInTheDocument();
-    expect(screen.getByText('Introducing Your Summer Collection')).toBeInTheDocument();
+    const generateButton = screen.getByRole('button', { name: /Generate brief/i });
+    await act(async () => {
+      fireEvent.click(generateButton);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Launch Day Is Here')).toBeInTheDocument();
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      '/api/creative/generate',
+      expect.objectContaining({ method: 'POST' })
+    );
+    expect(screen.getByText(/QA 95/i)).toBeInTheDocument();
+
+    (global as any).fetch = originalFetch;
   });
 });

@@ -1,24 +1,28 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import gsap from 'gsap';
+import { useGSAP } from '@gsap/react';
 import { useAuth } from '../context/AuthContext';
 import { useProject } from '../context/ProjectContext';
-import { TabId, Campaign, CampaignBrief, DnaResults } from '../types';
+import { TabId, DnaResults } from '../types';
 import { Sidebar } from './layout/Sidebar';
 import { WorkspaceHeader } from './layout/WorkspaceHeader';
 import { AppFooter } from './layout/AppFooter';
+import { CoordinatorView } from './views/CoordinatorView';
 import { CampaignsView } from './views/CampaignsView';
-import { CampaignDetailView } from './views/CampaignDetailView';
 import { BusinessDnaView } from './views/BusinessDnaView';
 import { PhotoshootView } from './views/PhotoshootView';
-import { BriefWriterView } from './views/BriefWriterView';
 import { AssetsLibraryView } from './views/AssetsLibraryView';
 import { SettingsView } from './views/SettingsView';
 import { Spinner } from './ui/Spinner';
+import { VerifyEmailBanner } from './auth/VerifyEmailBanner';
+import { apiRequestJson } from '../api/client';
+import { prefersReducedMotion } from '../lib/motion';
 
 export const DashboardShell: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { projects, activeProject, selectProject, error, isLoading } = useProject();
+  const { projects, activeProject, selectProject, addScannedBrand, error, isLoading } = useProject();
 
   const handleLogout = () => {
     logout();
@@ -26,26 +30,26 @@ export const DashboardShell: React.FC<{ children?: React.ReactNode }> = ({ child
   };
 
   const [activeTab, setActiveTab] = useState<TabId>('campaigns');
-  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
+  const viewRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(
+    () => {
+      if (prefersReducedMotion() || !viewRef.current) return;
+      gsap.fromTo(
+        viewRef.current,
+        { opacity: 0, y: 8 },
+        { opacity: 1, y: 0, duration: 0.35, ease: 'power2.out' }
+      );
+    },
+    { dependencies: [activeTab] }
+  );
 
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [isScanningDna, setIsScanningDna] = useState(false);
   const [dnaResults, setDnaResults] = useState<DnaResults | null>(null);
 
-  const [photoshootStyle, setPhotoshootStyle] = useState('Studio');
-  const [scenePrompt, setScenePrompt] = useState('');
-  const [isGeneratingPhoto, setIsGeneratingPhoto] = useState(false);
-  const [generatedPhoto, setGeneratedPhoto] = useState<string | null>(null);
-
-  const [campaignPrompt, setCampaignPrompt] = useState('');
-  const [campaignCopy, setCampaignCopy] = useState<CampaignBrief | null>(null);
-  const [isGeneratingBrief, setIsGeneratingBrief] = useState(false);
-
   const handleTabChange = (tab: TabId) => {
     setActiveTab(tab);
-    if (tab !== 'campaigns') {
-      setSelectedCampaign(null);
-    }
   };
 
   const handleDnaScan = async (e: React.FormEvent) => {
@@ -54,21 +58,42 @@ export const DashboardShell: React.FC<{ children?: React.ReactNode }> = ({ child
     setIsScanningDna(true);
     setDnaResults(null);
     try {
-      const response = await fetch('/api/dna/scan', {
+      const data = await apiRequestJson<{
+        id?: string;
+        title?: string;
+        colors?: string[];
+        tone?: string;
+        font_pairings?: string;
+        tagline?: string;
+      }>('/api/dna/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: websiteUrl }),
       });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to scan website DNA');
-      }
-      const data = await response.json();
-      setDnaResults({
-        brandName: data.title || websiteUrl.replace(/https?:\/\/(www\.)?/, '').split('.')[0].toUpperCase(),
-        colors: data.colors && data.colors.length > 0 ? data.colors : ['#4f46e5', '#f97316', '#0ea5e9', '#10b981'],
-        tone: data.tone || 'Modern, Professional, and Innovative',
-        font: data.font_pairings || 'Plus Jakarta Sans & Inter',
+
+      const extractedBrandName = data.title || websiteUrl.replace(/https?:\/\/(www\.)?/, '').split('.')[0].toUpperCase();
+      const extractedColors = data.colors && data.colors.length > 0 ? data.colors : ['#4f46e5', '#f97316', '#0ea5e9', '#10b981'];
+      const extractedTone = data.tone || 'Modern, Professional, and Innovative';
+      const extractedFont = data.font_pairings || 'Plus Jakarta Sans & Inter';
+
+      const resultsPayload = {
+        id: data.id,
+        brandName: extractedBrandName,
+        colors: extractedColors,
+        tone: extractedTone,
+        font: extractedFont,
+        tagline: data.tagline,
+      };
+
+      setDnaResults(resultsPayload);
+
+      addScannedBrand({
+        url: websiteUrl,
+        brandName: extractedBrandName,
+        colors: extractedColors,
+        font: extractedFont,
+        tone: extractedTone,
+        tagline: data.tagline,
       });
     } catch (err: any) {
       console.error(err);
@@ -78,79 +103,43 @@ export const DashboardShell: React.FC<{ children?: React.ReactNode }> = ({ child
     }
   };
 
-  const handlePhotoGenerate = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsGeneratingPhoto(true);
-    setGeneratedPhoto(null);
-    setTimeout(() => {
-      setIsGeneratingPhoto(false);
-      setGeneratedPhoto(
-        `Generated a high-fidelity image using the "${photoshootStyle}" theme based on prompt: "${scenePrompt || 'Minimalist studio setup'}"`
-      );
-    }, 1200);
-  };
-
-  const handleBriefGenerate = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsGeneratingBrief(true);
-    setCampaignCopy(null);
-    setTimeout(() => {
-      setIsGeneratingBrief(false);
-      setCampaignCopy({
-        headline: 'Launch your next campaign with confidence',
-        body: 'Structured messaging, channel-ready assets, and a clear timeline — all from one workspace.',
-        social: 'Plan smarter. Ship faster. BrandCore keeps your campaigns on track.',
+  // Fired when the user corrects the auto-extracted DNA in BusinessDnaView
+  // (see updateBrandDna in api/client.ts) - keeps this component's copy and
+  // the workspace's active project in sync with the correction immediately,
+  // no re-scan required.
+  const handleDnaUpdated = (updated: DnaResults) => {
+    setDnaResults(updated);
+    if (websiteUrl) {
+      addScannedBrand({
+        url: websiteUrl,
+        brandName: updated.brandName,
+        colors: updated.colors,
+        font: updated.font,
+        tone: updated.tone,
+        tagline: updated.tagline,
       });
-    }, 800);
+    }
   };
 
   const renderActiveView = () => {
-    if (activeTab === 'campaigns') {
-      if (selectedCampaign) {
-        return (
-          <CampaignDetailView
-            campaign={selectedCampaign}
-            onBack={() => setSelectedCampaign(null)}
-          />
-        );
-      }
-      return (
-        <CampaignsView
-          campaignPrompt={campaignPrompt}
-          campaignCopy={campaignCopy}
-          isGenerating={isGeneratingBrief}
-          onPromptChange={setCampaignPrompt}
-          onGenerate={handleBriefGenerate}
-          onSelectCampaign={setSelectedCampaign}
-        />
-      );
-    }
-
     switch (activeTab) {
+      case 'coordinator':
+        return <CoordinatorView />;
+      case 'campaigns':
+        return <CampaignsView />;
       case 'dna':
         return (
           <BusinessDnaView
             websiteUrl={websiteUrl}
             isScanning={isScanningDna}
             results={dnaResults}
+            onDnaUpdated={handleDnaUpdated}
             onUrlChange={setWebsiteUrl}
             onScan={handleDnaScan}
           />
         );
       case 'photoshoot':
-        return (
-          <PhotoshootView
-            style={photoshootStyle}
-            scenePrompt={scenePrompt}
-            isGenerating={isGeneratingPhoto}
-            generatedPhoto={generatedPhoto}
-            onStyleChange={setPhotoshootStyle}
-            onPromptChange={setScenePrompt}
-            onGenerate={handlePhotoGenerate}
-          />
-        );
-      case 'creator':
-        return <BriefWriterView />;
+        return <PhotoshootView />;
       case 'library':
         return <AssetsLibraryView />;
       case 'settings':
@@ -170,6 +159,7 @@ export const DashboardShell: React.FC<{ children?: React.ReactNode }> = ({ child
 
   return (
     <div className="flex h-screen bg-brand-bg text-brand-text font-sans overflow-hidden">
+      <a href="#dashboard-main" className="skip-link">Skip to content</a>
       <Sidebar activeTab={activeTab} onTabChange={handleTabChange} />
 
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
@@ -181,23 +171,25 @@ export const DashboardShell: React.FC<{ children?: React.ReactNode }> = ({ child
           onLogout={handleLogout}
         />
 
+        <VerifyEmailBanner />
+
         {error && (
           <div
             role="alert"
-            className="bg-red-50 border-b border-red-200 text-red-800 px-6 py-2.5 text-sm shrink-0"
+            className="bg-state-danger border-b border-[#F3C6C6] text-state-danger-text px-6 py-2.5 text-sm shrink-0"
           >
             <strong>Error:</strong> {error}
           </div>
         )}
 
-        <main className="flex-1 overflow-y-auto px-6 py-8 workspace-container" data-testid="workspace-container">
+        <main id="dashboard-main" className="flex-1 overflow-y-auto px-6 py-8 workspace-container" data-testid="workspace-container">
           <div className="max-w-6xl mx-auto">
             <div className="sr-only">
               <h1>{activeProject?.name}</h1>
               <p>{activeProject?.description}</p>
             </div>
 
-            {children || renderActiveView()}
+            <div ref={viewRef}>{children || renderActiveView()}</div>
           </div>
         </main>
 

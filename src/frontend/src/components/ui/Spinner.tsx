@@ -16,7 +16,7 @@ export const Spinner: React.FC<SpinnerProps> = ({ label, size = 'md', variant = 
       aria-label={label || 'Loading'}
     />
     {label && (
-      <span className={`text-sm ${variant === 'light' ? 'text-slate-300' : 'text-brand-muted'}`}>{label}</span>
+      <span className={`text-sm ${variant === 'light' ? 'text-white/60' : 'text-brand-muted'}`}>{label}</span>
     )}
   </div>
 );
