@@ -1,0 +1,142 @@
+name: CI
+
+# Runs on every push and pull request. This is the "CD" half of CI/CD too -
+# the build-and-publish job below only runs after the full test job passes,
+# only on pushes to main, and only publishes a Docker image (to GitHub
+# Container Registry, free, using the repo's own built-in GITHUB_TOKEN - no
+# external account or paid service needed). It doesn't deploy that image
+# anywhere by itself: there's no live server this repo currently targets
+# (docker-compose.yml is documented as local/self-host - see HANDOFF.md
+# §11), so "deploy" stops at "produce a tagged, pullable image" until a real
+# target exists. Point a `docker pull` + restart at ghcr.io/<owner>/<repo>
+# from wherever you host it to finish the loop.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # Same image/credentials as the local dev Postgres in HANDOFF.md's setup
+    # instructions, just running as a GitHub Actions service container
+    # instead of a manually-started `docker run`.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: brandcore_auth_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      # Real BullMQ (queue.service.ts) - without this, the queue silently
+      # runs in its synchronous in-process fallback mode (see that file's
+      # docstring), so tests still pass, but the real-Redis code path
+      # wouldn't be exercised in CI.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      # Real Qdrant (qdrant.service.ts) - the Knowledge Base / website Q&A
+      # chatbot tests fall back to an in-memory substring-match mode without
+      # this (see that file's docstring), same reasoning as redis above.
+      qdrant:
+        image: qdrant/qdrant:latest
+        ports:
+          - 6333:6333
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL_TEST: postgresql://postgres:postgres@localhost:5432/brandcore_auth_test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/brandcore_auth_test
+      JWT_ACCESS_SECRET: ci_access_secret_not_for_production
+      JWT_REFRESH_SECRET: ci_refresh_secret_not_for_production
+      REDIS_URL: redis://localhost:6379
+      QDRANT_URL: http://localhost:6333
+      # Optional - the app degrades to local heuristic fallbacks everywhere
+      # an LLM call would happen when these are unset (see groq.service.ts /
+      # creative.service.ts / intelligence.service.ts for GROQ_API_KEY;
+      # embedding.service.ts for GEMINI_API_KEY, still Gemini-only - see
+      # HANDOFF.md §21), so CI passes without either. Add these as repo
+      # secrets to exercise the real API paths too.
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Python venv for the crawl agent
+        # dna.service.ts hardcodes `.venv/bin/python` relative to the repo
+        # root - keep this path in sync with that if it ever changes.
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -r requirements.txt
+
+      - name: Install Playwright's Chromium
+        run: .venv/bin/python -m playwright install --with-deps chromium
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npm test
+
+  build-and-publish:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute lowercase image name
+        # Docker/OCI image refs must be all-lowercase, but this repo
+        # (VedangM05/BrandCore) isn't - github.repository would otherwise
+        # produce an invalid ref like ghcr.io/VedangM05/BrandCore.
+        id: image
+        run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ steps.image.outputs.name }}:latest
+            ghcr.io/${{ steps.image.outputs.name }}:${{ github.sha }}

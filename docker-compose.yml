@@ -1,0 +1,97 @@
+name: brandcore
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: brandcore_auth
+    volumes:
+      - brandcore_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - brandcore_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    volumes:
+      - brandcore_qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+  app:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/brandcore_auth
+      # The bundled postgres:16-alpine image doesn't speak SSL - without this,
+      # src/db/index.ts infers SSL from the hostname (anything not
+      # literally "localhost") and the connection would fail outright.
+      DATABASE_SSL: "false"
+      # Dev-only placeholders so the app boots with zero setup - auth still
+      # fully works (see src/middleware/auth.middleware.ts's own fallback
+      # secrets), but replace both before this is reachable by anyone but
+      # you, e.g. via a .env file (docker compose reads one automatically)
+      # overriding these.
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev_access_secret_change_me}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev_refresh_secret_change_me}
+      JWT_ACCESS_EXPIRES_IN: ${JWT_ACCESS_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      ARGON2_MEMORY_COST: ${ARGON2_MEMORY_COST:-65536}
+      ARGON2_TIME_COST: ${ARGON2_TIME_COST:-3}
+      ARGON2_PARALLELISM: ${ARGON2_PARALLELISM:-4}
+      # Optional - every feature that uses these (Brand DNA synthesis,
+      # campaign copy, campaign ideas, text Brand QA, chat answers via Groq;
+      # image Brand QA (vision) + website knowledge embeddings via Gemini -
+      # see HANDOFF.md §21/§22 for why generation moved to Groq but
+      # embeddings AND vision stayed on Gemini, since Groq has neither an
+      # embeddings endpoint nor any vision-capable model) already degrades
+      # to a local heuristic/no-op fallback when unset, so the app is fully
+      # usable without them, just less capable. Set in a .env file next to
+      # this compose file, or export in your shell, to enable the real thing.
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      POLLINATIONS_TOKEN: ${POLLINATIONS_TOKEN:-}
+      # Real BullMQ (queue.service.ts) and Qdrant (qdrant.service.ts /
+      # Knowledge Base + chatbot) - both point at the sibling containers
+      # above by their compose service name, not localhost. Both are
+      # optional in the sense that the app degrades gracefully without
+      # them (see each service's own docstring), but they're included here
+      # by default since they're free/self-hosted and this is the
+      # "everything in one command" compose file.
+      REDIS_URL: redis://redis:6379
+      QDRANT_URL: http://qdrant:6333
+    volumes:
+      # Generated images/campaign assets persist across `docker compose down`/`up`.
+      - brandcore_uploads:/app/uploads
+    restart: unless-stopped
+
+volumes:
+  brandcore_pgdata:
+  brandcore_uploads:
+  brandcore_redis_data:
+  brandcore_qdrant_data:
