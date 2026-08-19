@@ -93,7 +93,14 @@ describe('DashboardShell Integration & Component Tests', () => {
     renderShell();
 
     const libraryLink = screen.getByRole('link', { name: /Assets Library/i });
-    fireEvent.click(libraryLink);
+    // AssetsLibraryView is lazy-loaded (React.lazy/Suspense) - the click
+    // triggers the dynamic import, which is real async work React's
+    // synchronous act() (the one fireEvent uses internally) can't wait out.
+    // Without the async act() wrapper here, findByText below was racing an
+    // unresolved Suspense boundary instead of polling a settled one.
+    await act(async () => {
+      fireEvent.click(libraryLink);
+    });
 
     // No assets are seeded/mocked for this test's API layer, so the library
     // should show its genuine empty state rather than any placeholder grid -
@@ -142,7 +149,10 @@ describe('DashboardShell Integration & Component Tests', () => {
     const dnaTabLink = screen.getByRole('link', { name: /Business DNA/i });
     fireEvent.click(dnaTabLink);
 
-    const urlInput = screen.getByPlaceholderText('https://yourbrand.com');
+    // BusinessDnaView is lazy-loaded (React.lazy/Suspense) - the click above
+    // only starts the dynamic import; the tab's real content (vs. the
+    // Suspense fallback) isn't in the DOM until it resolves.
+    const urlInput = await screen.findByPlaceholderText('https://yourbrand.com');
     fireEvent.change(urlInput, { target: { value: 'https://nike.com' } });
 
     const scanButton = screen.getByRole('button', { name: /Scan DNA/i });
@@ -192,7 +202,9 @@ describe('DashboardShell Integration & Component Tests', () => {
     const photoshootLink = screen.getByRole('link', { name: /AI Photoshoot/i });
     fireEvent.click(photoshootLink);
 
-    const inUseButton = screen.getByRole('button', { name: 'In Use' });
+    // PhotoshootView is lazy-loaded (React.lazy/Suspense) - wait for the
+    // dynamic import to resolve past the Suspense fallback.
+    const inUseButton = await screen.findByRole('button', { name: 'In Use' });
     fireEvent.click(inUseButton);
 
     const promptInput = screen.getByPlaceholderText(/e.g. Set product on a clean wood table/i);
