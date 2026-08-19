@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
@@ -8,16 +8,23 @@ import { TabId, DnaResults } from '../types';
 import { Sidebar } from './layout/Sidebar';
 import { WorkspaceHeader } from './layout/WorkspaceHeader';
 import { AppFooter } from './layout/AppFooter';
-import { CoordinatorView } from './views/CoordinatorView';
-import { CampaignsView } from './views/CampaignsView';
-import { BusinessDnaView } from './views/BusinessDnaView';
-import { PhotoshootView } from './views/PhotoshootView';
-import { AssetsLibraryView } from './views/AssetsLibraryView';
-import { SettingsView } from './views/SettingsView';
 import { Spinner } from './ui/Spinner';
 import { VerifyEmailBanner } from './auth/VerifyEmailBanner';
 import { apiRequestJson } from '../api/client';
 import { prefersReducedMotion } from '../lib/motion';
+
+// Code-split per tab (React.lazy) instead of shipping every view - and
+// everything they pull in, notably Konva for the asset editor - in the
+// single ~1MB main bundle every user downloads on login regardless of
+// which tabs they ever open. Each view still only has a named export, so
+// each import() is remapped to the { default } shape React.lazy expects,
+// rather than touching every view file just to add one.
+const CoordinatorView = lazy(() => import('./views/CoordinatorView').then((m) => ({ default: m.CoordinatorView })));
+const CampaignsView = lazy(() => import('./views/CampaignsView').then((m) => ({ default: m.CampaignsView })));
+const BusinessDnaView = lazy(() => import('./views/BusinessDnaView').then((m) => ({ default: m.BusinessDnaView })));
+const PhotoshootView = lazy(() => import('./views/PhotoshootView').then((m) => ({ default: m.PhotoshootView })));
+const AssetsLibraryView = lazy(() => import('./views/AssetsLibraryView').then((m) => ({ default: m.AssetsLibraryView })));
+const SettingsView = lazy(() => import('./views/SettingsView').then((m) => ({ default: m.SettingsView })));
 
 export const DashboardShell: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
@@ -189,7 +196,11 @@ export const DashboardShell: React.FC<{ children?: React.ReactNode }> = ({ child
               <p>{activeProject?.description}</p>
             </div>
 
-            <div ref={viewRef}>{children || renderActiveView()}</div>
+            <div ref={viewRef}>
+              <Suspense fallback={<Spinner label="Loading..." />}>
+                {children || renderActiveView()}
+              </Suspense>
+            </div>
           </div>
         </main>
 
