@@ -244,4 +244,34 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 );
 CREATE INDEX IF NOT EXISTS idx_chat_messages_user_brand ON chat_messages(user_id, brand_dna_id, created_at);
 
+-- Row Level Security - closes Supabase's "table publicly accessible" /
+-- "sensitive data publicly accessible" findings. Supabase auto-exposes every
+-- public-schema table over its own REST API (PostgREST, using the anon/
+-- authenticated keys) independent of anything this app does - with RLS off,
+-- that API can read/write every table directly, completely bypassing this
+-- app's own requireAuth middleware, since PostgREST is a separate access
+-- path this app never goes through.
+--
+-- This app only ever talks to Postgres directly via `pg`
+-- (DATABASE_URL, connected as the postgres.<project-ref> pooler role - see
+-- src/db/index.ts) - it never uses @supabase/supabase-js or an anon key, so
+-- the PostgREST surface these tables are exposed on is entirely unused by
+-- the app itself. Enabling RLS with zero policies denies the anon/
+-- authenticated PostgREST roles by default while leaving this app's own
+-- connection unaffected, since the postgres role bypasses RLS - no policies
+-- to write or keep in sync with the app's own ownership logic (already
+-- enforced in application code, e.g. asset.service.ts/brandDna.service.ts).
+-- Idempotent - safe to run on every boot alongside the rest of this file.
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE refresh_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE crawl_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE crawl_results ENABLE ROW LEVEL SECURITY;
+ALTER TABLE campaigns ENABLE ROW LEVEL SECURITY;
+ALTER TABLE usage_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE assets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE email_verification_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE password_reset_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+
 
