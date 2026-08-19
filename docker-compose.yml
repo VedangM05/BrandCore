@@ -89,6 +89,30 @@ services:
       # Generated images/campaign assets persist across `docker compose down`/`up`.
       - brandcore_uploads:/app/uploads
     restart: unless-stopped
+    # `docker compose watch` (instead of manually re-running `--build` after
+    # every edit). Rules are first-match-wins, top to bottom - the frontend
+    # rule has to come before the general backend one since src/frontend is
+    # nested inside src/, or the broader rule would catch it first.
+    develop:
+      watch:
+        # Frontend goes through `vite build` (baked into the image at build
+        # time, not served by a dev server inside the container - see
+        # src/app.ts's static-serving fallback) - a file sync alone wouldn't
+        # rebuild dist/client, so this needs the full image rebuild.
+        - path: ./src/frontend
+          action: rebuild
+        - path: ./package.json
+          action: rebuild
+        - path: ./package-lock.json
+          action: rebuild
+        - path: ./requirements.txt
+          action: rebuild
+        # Backend runs directly via `npx tsx src/server.ts` (no bundling
+        # step) - syncing the changed file into the container and
+        # restarting the process is enough, no rebuild needed.
+        - path: ./src
+          target: /app/src
+          action: sync+restart
 
 volumes:
   brandcore_pgdata:
