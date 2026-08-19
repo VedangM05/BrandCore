@@ -120,7 +120,7 @@ Respond ONLY with a valid JSON object matching this schema (no markdown, no code
   });
 }
 
-export async function runCopywriterNode(
+async function runCopywriterNode(
   prompt: string,
   brandDna: any,
   feedback?: string,
@@ -174,7 +174,7 @@ export async function runCopywriterNode(
   });
 }
 
-export async function runArtDirectorNode(prompt: string, brandDna: any, feedback?: string): Promise<ArtDirectorOutput> {
+async function runArtDirectorNode(prompt: string, brandDna: any, feedback?: string): Promise<ArtDirectorOutput> {
   return traceAgentNode('art_director_agent_node', async () => {
     const brandName = brandDna.title || brandDna.domain || 'Brand';
     const colors = brandDna.colors || ['#6366f1', '#06b6d4'];
@@ -399,7 +399,7 @@ Respond ONLY with valid JSON, no markdown, no code fences: {"score": <0-100 inte
   });
 }
 
-export async function runQaCheckerNode(
+async function runQaCheckerNode(
   prompt: string,
   brandDna: any,
   copy: CopywriterOutput,
@@ -432,7 +432,7 @@ export async function runQaCheckerNode(
   });
 }
 
-export async function runBestOfNFallbackNode(attempts: AttemptRecord[]): Promise<AttemptRecord> {
+async function runBestOfNFallbackNode(attempts: AttemptRecord[]): Promise<AttemptRecord> {
   return traceAgentNode('best_of_n_fallback_node', async () => {
     console.log('[FALLBACK] Bounded retries exhausted. Executing Best-of-N fallback selection.');
     if (attempts.length === 0) {

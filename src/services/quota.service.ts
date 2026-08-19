@@ -8,7 +8,7 @@ export interface TierLimits {
   monthlyTokenLimit: number;
 }
 
-export const TIER_DEFINITIONS: Record<string, TierLimits> = {
+const TIER_DEFINITIONS: Record<string, TierLimits> = {
   free: { monthlyCostLimit: 1.00, monthlyTokenLimit: 10000 },
   pro: { monthlyCostLimit: 50.00, monthlyTokenLimit: 500000 },
   enterprise: { monthlyCostLimit: 500.00, monthlyTokenLimit: 5000000 }

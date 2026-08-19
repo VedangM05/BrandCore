@@ -46,7 +46,7 @@ function createRedisConnection(): IORedis | null {
  * lets different job *names* on the same queue still run different logic,
  * dispatched inside that one processor.
  */
-export class ManagedQueue extends EventEmitter {
+class ManagedQueue extends EventEmitter {
   private queueName: string;
   public readonly workerConcurrencyCap: number;
   public readonly defaultJobOptions = {

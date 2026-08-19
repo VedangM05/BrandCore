@@ -7,7 +7,7 @@ import { defaultQueueManager } from './queue.service';
 
 const tracer = trace.getTracer('brandcore-knowledge-base-service');
 
-export const INDEX_KNOWLEDGE_JOB = 'index_brand_knowledge';
+const INDEX_KNOWLEDGE_JOB = 'index_brand_knowledge';
 
 export interface IndexKnowledgeJobPayload {
   brandDnaId: string;
