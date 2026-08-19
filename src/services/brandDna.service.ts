@@ -56,7 +56,13 @@ export async function resolveBrandDna(brandDnaId: string | undefined | null, use
         brandDna = latestRes.rows[0];
         validDnaId = brandDna.id;
       }
-    } catch (err) {}
+    } catch (err) {
+      // Unlike the format-check fallback above, a real DB error here (not
+      // just "no rows") was previously swallowed silently, making a
+      // transient connection failure indistinguishable from "this user has
+      // no scanned brands yet" to every caller (every generation endpoint).
+      console.error('[BrandDNA] Failed to look up latest brand DNA:', err);
+    }
   }
 
   return { brandDna, validDnaId };
