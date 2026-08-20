@@ -3,8 +3,10 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { AuthLayout, AuthLink } from '../components/auth/AuthLayout';
 import { GoogleAuthButton, isGoogleAuthConfigured } from '../components/auth/GoogleAuthButton';
+import { usePageMeta } from '../lib/pageMeta';
 
 export const SignupPage: React.FC = () => {
+  usePageMeta('Create your account — BrandCore', 'Create a free BrandCore account to scan a website and generate on-brand campaigns from it.');
   const { signup, loginWithGoogleToken, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
 

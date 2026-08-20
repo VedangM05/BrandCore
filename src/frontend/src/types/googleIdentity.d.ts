@@ -15,6 +15,12 @@ declare global {
   // global is never defined at all.
   const __GOOGLE_CLIENT_ID__: string;
 
+  // Same define-injection pattern, for analytics.ts - see that file's own
+  // docstring. Both empty strings (not configured) unless VITE_ANALYTICS_*
+  // is set.
+  const __ANALYTICS_DOMAIN__: string;
+  const __ANALYTICS_SCRIPT_SRC__: string;
+
   interface Window {
     google?: {
       accounts: {

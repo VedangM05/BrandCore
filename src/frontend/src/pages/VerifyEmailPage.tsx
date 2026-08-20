@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { verifyEmail } from '../api/auth';
 import { AuthLayout, AuthLink } from '../components/auth/AuthLayout';
+import { usePageMeta } from '../lib/pageMeta';
 
 type VerifyState = 'verifying' | 'success' | 'error';
 
 export const VerifyEmailPage: React.FC = () => {
+  usePageMeta('Verify your email — BrandCore', 'Verify your email address to finish setting up your BrandCore account.');
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') || '';
   const [state, setState] = useState<VerifyState>(token ? 'verifying' : 'error');

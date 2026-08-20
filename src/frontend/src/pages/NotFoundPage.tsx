@@ -4,8 +4,10 @@ import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { LogoMark, ArrowLeftIcon } from '../components/icons';
 import { prefersReducedMotion } from '../lib/motion';
+import { usePageMeta } from '../lib/pageMeta';
 
 export const NotFoundPage: React.FC = () => {
+  usePageMeta('Page not found — BrandCore', 'The page you requested could not be found.');
   const containerRef = useRef<HTMLDivElement>(null);
 
   useGSAP(

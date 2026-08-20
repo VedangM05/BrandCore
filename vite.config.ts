@@ -15,7 +15,9 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     root: path.resolve(__dirname, 'src/frontend'),
     define: {
-      __GOOGLE_CLIENT_ID__: JSON.stringify(env.VITE_GOOGLE_CLIENT_ID || '')
+      __GOOGLE_CLIENT_ID__: JSON.stringify(env.VITE_GOOGLE_CLIENT_ID || ''),
+      __ANALYTICS_DOMAIN__: JSON.stringify(env.VITE_ANALYTICS_DOMAIN || ''),
+      __ANALYTICS_SCRIPT_SRC__: JSON.stringify(env.VITE_ANALYTICS_SCRIPT_SRC || '')
     },
     build: {
       outDir: path.resolve(__dirname, 'dist/client'),

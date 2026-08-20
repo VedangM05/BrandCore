@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { forgotPassword } from '../api/auth';
 import { AuthLayout, AuthLink } from '../components/auth/AuthLayout';
+import { usePageMeta } from '../lib/pageMeta';
 
 export const ForgotPasswordPage: React.FC = () => {
+  usePageMeta('Reset your password — BrandCore', 'Request a password reset link for your BrandCore account.');
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);

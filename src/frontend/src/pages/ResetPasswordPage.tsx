@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { resetPassword } from '../api/auth';
 import { AuthLayout, AuthLink } from '../components/auth/AuthLayout';
+import { usePageMeta } from '../lib/pageMeta';
 
 export const ResetPasswordPage: React.FC = () => {
+  usePageMeta('Set a new password — BrandCore', 'Set a new password for your BrandCore account.');
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const token = searchParams.get('token') || '';

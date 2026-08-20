@@ -1,8 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { LogoMark, ArrowLeftIcon } from '../components/icons';
+import { usePageMeta } from '../lib/pageMeta';
 
-export const PrivacyPage: React.FC = () => (
+export const PrivacyPage: React.FC = () => {
+  usePageMeta('Privacy Policy — BrandCore', 'How BrandCore collects, uses, and protects your data.');
+  return (
   <div className="min-h-dvh bg-brand-bg">
     <header className="border-b border-brand-border">
       <div className="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -64,4 +67,5 @@ export const PrivacyPage: React.FC = () => (
       </div>
     </main>
   </div>
-);
+  );
+};

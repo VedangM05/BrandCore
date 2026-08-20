@@ -1,8 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { LogoMark, ArrowLeftIcon } from '../components/icons';
+import { usePageMeta } from '../lib/pageMeta';
 
-export const TermsPage: React.FC = () => (
+export const TermsPage: React.FC = () => {
+  usePageMeta('Terms of Service — BrandCore', 'The terms governing your use of BrandCore.');
+  return (
   <div className="min-h-dvh bg-brand-bg">
     <header className="border-b border-brand-border">
       <div className="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -57,4 +60,5 @@ export const TermsPage: React.FC = () => (
       </div>
     </main>
   </div>
-);
+  );
+};

@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { AuthLayout, AuthLink } from '../components/auth/AuthLayout';
 import { GoogleAuthButton, isGoogleAuthConfigured } from '../components/auth/GoogleAuthButton';
+import { usePageMeta } from '../lib/pageMeta';
 
 const DEMO_ACCOUNTS = [
   { email: 'vedang@brandcore.com', password: 'password123', label: 'vedang@brandcore.com' },
@@ -10,6 +11,7 @@ const DEMO_ACCOUNTS = [
 ];
 
 export const LoginPage: React.FC = () => {
+  usePageMeta('Sign in — BrandCore', 'Sign in to your BrandCore workspace to scan brands and generate on-brand campaigns.');
   const { login, loginWithGoogleToken, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
 

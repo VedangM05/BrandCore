@@ -1,0 +1,17 @@
+# BrandCore is an authenticated SaaS workspace - everything under the app
+# shell (/, /campaigns, /dna, etc.) requires login and redirects unauthenticated
+# crawlers to /login anyway, so there's nothing indexable behind it. Only the
+# genuinely public marketing/auth pages are worth crawling.
+User-agent: *
+Allow: /login
+Allow: /signup
+Allow: /terms
+Allow: /privacy
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /verify-email
+
+# Update this to the real deployed domain once one exists - see HANDOFF's
+# "deploy currently stops at a Docker image" note. FRONTEND_URL (server env)
+# is the single source of truth for that domain elsewhere in the app.
+Sitemap: https://yourdomain.example.com/sitemap.xml
