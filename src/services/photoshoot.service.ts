@@ -69,14 +69,29 @@ function buildBrandVisualPrefix(brandDna: any): string {
   if (brandDna.audience) {
     prefix += ` Shot with this brand's actual audience in mind: ${brandDna.audience}.`;
   }
+  // mission/value_proposition ground WHAT the scene should actually depict,
+  // not just its mood - without this, the scene/subject came only from the
+  // user's own prompt + the art director's free interpretation, so it could
+  // drift into generic imagery unrelated to what the business actually does
+  // (real example: a "festival" scene for a project-management brand
+  // rendered an unrelated person-in-industrial-gear scene, styled with the
+  // right colors but depicting nothing about the actual product).
+  if (brandDna.mission || brandDna.value_proposition) {
+    prefix += ` This business's actual purpose: ${brandDna.mission || brandDna.value_proposition}. The scene should feel authentically connected to what this business actually does, not generic stock imagery.`;
+  }
   return prefix;
 }
 
 // Image models render text unreliably (garbled signage, mangled letters), so every
 // generated background explicitly excludes it - any real copy is composited
-// server-side afterward by composite.service.ts instead.
+// server-side afterward by composite.service.ts instead. Diffusion models
+// tend to follow a positive instruction ("make it blank") more reliably
+// than a pure negative one ("don't add text") - confirmed live: a scene
+// asking for a sign/board still got garbled stenciled text on it despite
+// the negative instruction alone. Both framings are included now, not just
+// the negative one.
 const NO_TEXT_DIRECTIVE =
-  'Do not render any text, words, letters, numbers, signage, labels, or logos anywhere in the image - no readable characters of any kind. Pure photography only.';
+  'Do not render any text, words, letters, numbers, signage, labels, or logos anywhere in the image - no readable characters of any kind. Any sign, board, poster, screen, or paper visible in the scene must be completely blank and empty, with no writing or markings on it. Pure photography only.';
 
 // Bounded per the spec doc's Fix #2: a fixed number of attempts up front,
 // falling back to the best-scoring one, rather than an open-ended retry loop.

@@ -46,6 +46,47 @@ function relativeTime(iso: string): string {
   return `${days}d ago`;
 }
 
+// Both the grid cards and the detail modal were pure text/metadata - no
+// actual image preview anywhere in the library, despite every asset here
+// being an image. Fetches the asset's blob via the existing authenticated
+// helper (getAssetBlobUrl already attaches the Authorization header a plain
+// <img src="/api/assets/:id/download"> can't) and revokes the object URL on
+// unmount so repeatedly opening/closing the grid doesn't leak memory.
+const AssetThumbnail: React.FC<{ assetId: string; alt: string; className: string }> = ({ assetId, alt, className }) => {
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    getAssetBlobUrl(assetId)
+      .then((blobUrl) => {
+        if (cancelled) return;
+        objectUrl = blobUrl;
+        setUrl(blobUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [assetId]);
+
+  if (failed) {
+    return (
+      <div className={`${className} flex items-center justify-center bg-brand-sunken text-brand-faint`}>
+        <ImageIcon className="w-6 h-6" />
+      </div>
+    );
+  }
+  if (!url) {
+    return <div className={`${className} bg-brand-sunken animate-pulse`} />;
+  }
+  return <img src={url} alt={alt} className={`${className} object-cover`} />;
+};
+
 interface EditingAsset {
   asset: AssetRecord;
   imageUrl: string;
@@ -297,6 +338,11 @@ export const AssetsLibraryView: React.FC = () => {
                 data-testid="asset-card"
               >
                 <div>
+                  <AssetThumbnail
+                    assetId={asset.id}
+                    alt={asset.name}
+                    className="w-full aspect-square rounded-md mb-3"
+                  />
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] text-brand-faint font-mono">{typeLabel}</span>
                     <span className="text-[10px] text-brand-primary font-medium opacity-0 group-hover:opacity-100 transition-opacity">
@@ -344,6 +390,12 @@ export const AssetsLibraryView: React.FC = () => {
                 <CloseIcon className="w-4 h-4" />
               </button>
             </div>
+
+            <AssetThumbnail
+              assetId={selectedAsset.id}
+              alt={selectedAsset.name}
+              className="w-full max-h-72 rounded-md border border-brand-border"
+            />
 
             <div className="space-y-3 text-sm">
               <div>

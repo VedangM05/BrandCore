@@ -286,11 +286,11 @@ export const AssetEditor: React.FC<AssetEditorProps> = ({
     setTextLayers((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
   };
 
-  const handleAddText = () => {
+  const handleAddText = (text: string = 'New text') => {
     const id = nextLayerId();
     const newLayer: EditableTextLayer = {
       id,
-      text: 'New text',
+      text,
       x: frame.width * 0.1,
       y: frame.height / 2,
       fontSize: Math.round(frame.width * 0.045),
@@ -394,6 +394,24 @@ export const AssetEditor: React.FC<AssetEditorProps> = ({
         handleAspectChange(aspectMatch);
         applied = true;
       }
+    }
+
+    // Nothing else matched, and this reads like actual content someone
+    // wants on the image (a real phrase, not a one/two-word attempt at a
+    // keyword shortcut) - previously the box only accepted the listed
+    // shortcuts, so typing an actual headline/punchline (a very natural
+    // thing to try, despite the "keyword shortcuts, not AI" hint) just
+    // failed with no path forward. Sets it as the selected layer's text,
+    // or adds a new layer with it if none is selected - still not an LLM
+    // call, just literally using the typed words as the text content.
+    if (!applied && !mentionsBackground && quickEditInput.trim().split(/\s+/).length >= 2) {
+      const content = quickEditInput.trim();
+      if (selectedId) {
+        setTextLayers((prev) => prev.map((l) => (l.id === selectedId ? { ...l, text: content } : l)));
+      } else {
+        handleAddText(content);
+      }
+      applied = true;
     }
 
     setQuickEditFeedback(
@@ -554,7 +572,7 @@ export const AssetEditor: React.FC<AssetEditorProps> = ({
         <div>
           <p className="text-xs font-semibold text-brand-text mb-1.5">Quick edit</p>
           <p className="text-[11px] text-brand-muted mb-2">
-            Keyword shortcuts, not AI — try "make it bigger", a color name, "warm"/"cool"/"vivid"/"mono", or "square"/"portrait"/"story" format.
+            Keyword shortcuts, not AI — try "make it bigger", a color name, "warm"/"cool"/"vivid"/"mono", "square"/"portrait"/"story" format, or just type a headline to set it as text.
           </p>
           <div className="flex gap-2">
             <input
@@ -602,7 +620,7 @@ export const AssetEditor: React.FC<AssetEditorProps> = ({
 
         <div className="flex items-center justify-between">
           <p className="text-xs font-semibold text-brand-text">Text layers</p>
-          <button type="button" onClick={handleAddText} className="text-xs font-medium text-brand-primary hover:underline">
+          <button type="button" onClick={() => handleAddText()} className="text-xs font-medium text-brand-primary hover:underline">
             + Add text
           </button>
         </div>
