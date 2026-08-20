@@ -74,6 +74,22 @@ ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS value_proposition TEXT;
 -- exists.
 ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS site_images JSONB;
 
+-- Additional same-domain pages crawled beyond the one URL the user
+-- actually scanned (crawl_agent.py's discover_pages_to_crawl - sitemap.xml
+-- first, falls back to internal links). Grounds the website Q&A chatbot's
+-- knowledge base in the whole site, not just the scanned page - see
+-- knowledgeBase.service.ts's indexBrandKnowledge. Replaced (not appended
+-- to) on every rescan of the same brand, same "stale content shouldn't
+-- linger" pattern the Qdrant re-indexing itself already uses.
+CREATE TABLE IF NOT EXISTS crawl_pages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    crawl_result_id UUID NOT NULL REFERENCES crawl_results(id) ON DELETE CASCADE,
+    url VARCHAR(2048) NOT NULL,
+    markdown_content TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_crawl_pages_crawl_result ON crawl_pages(crawl_result_id);
+
 CREATE TABLE IF NOT EXISTS campaigns (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     brand_dna_id UUID REFERENCES crawl_results(id) ON DELETE CASCADE,
@@ -279,5 +295,6 @@ ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_verification_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE password_reset_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE crawl_pages ENABLE ROW LEVEL SECURITY;
 
 

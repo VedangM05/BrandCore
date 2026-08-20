@@ -185,9 +185,29 @@ export async function runDnaScan(url: string, userId: string): Promise<DnaScanRe
       );
       const brandDnaId = upsertRes.rows[0].id;
 
+      // Additional same-domain pages beyond the one the user scanned (see
+      // crawl_agent.py's discover_pages_to_crawl) - grounds the website
+      // Q&A chatbot in the whole site, not just this one page. Replace
+      // (not append) on every rescan, same "stale content shouldn't
+      // linger" pattern the Qdrant re-indexing itself already uses.
+      // Non-fatal: the primary Brand DNA row above is already committed,
+      // so a failure here shouldn't fail a scan the user is waiting on.
+      const additionalPages: { url: string; markdown: string }[] = parsed.additional_pages || [];
+      try {
+        await query('DELETE FROM crawl_pages WHERE crawl_result_id = $1', [brandDnaId]);
+        for (const page of additionalPages) {
+          await query(
+            'INSERT INTO crawl_pages (crawl_result_id, url, markdown_content) VALUES ($1, $2, $3)',
+            [brandDnaId, page.url, page.markdown]
+          );
+        }
+      } catch (pagesErr: any) {
+        console.error('[DNA] Additional page persistence failed (non-fatal):', pagesErr.message);
+      }
+
       await query(
-        "UPDATE crawl_jobs SET status = 'completed', pages_crawled = 1, updated_at = NOW() WHERE id = $1",
-        [jobId]
+        "UPDATE crawl_jobs SET status = 'completed', pages_crawled = $2, updated_at = NOW() WHERE id = $1",
+        [jobId, 1 + additionalPages.length]
       );
 
       // Sync the server-side project record so it survives across

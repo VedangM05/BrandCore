@@ -6,7 +6,9 @@ import urllib.parse
 import urllib.request
 import io
 import re
+import xml.etree.ElementTree as ET
 from collections import Counter
+from urllib.parse import urlparse
 from PIL import Image
 import numpy as np
 from bs4 import BeautifulSoup
@@ -393,6 +395,87 @@ def check_robots_allowed(target_url):
     except Exception:
         return True
 
+MAX_ADDITIONAL_PAGES = 6
+
+def _fetch_sitemap_urls(sitemap_url, base_netloc, seen=None, depth=0):
+    """
+    Parses one sitemap.xml (or a <sitemapindex> pointing at others) into a
+    flat list of same-domain page URLs. Follows at most one level of a
+    sitemap index (the first child sitemap only) - real sitemap indexes can
+    reference dozens of sitemaps, and this is a lightweight page-discovery
+    signal for the chatbot's knowledge base, not a full site mirror.
+    """
+    if depth > 1:
+        return []
+    try:
+        req = urllib.request.Request(
+            sitemap_url,
+            headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'}
+        )
+        with urllib.request.urlopen(req, timeout=5) as response:
+            xml_bytes = response.read()
+        root = ET.fromstring(xml_bytes)
+    except Exception:
+        return []
+
+    # Namespace-agnostic tag matching - sitemap.xml is almost always in the
+    # sitemaps.org namespace, but strip it rather than hardcode the URI.
+    def local_tag(el):
+        return el.tag.rsplit('}', 1)[-1]
+
+    if local_tag(root) == 'sitemapindex':
+        for sitemap_el in root:
+            if local_tag(sitemap_el) != 'sitemap':
+                continue
+            loc = next((c.text for c in sitemap_el if local_tag(c) == 'loc' and c.text), None)
+            if loc:
+                return _fetch_sitemap_urls(loc, base_netloc, seen, depth + 1)
+        return []
+
+    urls = []
+    for url_el in root:
+        if local_tag(url_el) != 'url':
+            continue
+        loc = next((c.text for c in url_el if local_tag(c) == 'loc' and c.text), None)
+        if loc and urlparse(loc).netloc == base_netloc:
+            urls.append(loc.strip())
+    return urls
+
+def discover_pages_to_crawl(base_url, internal_links, limit=MAX_ADDITIONAL_PAGES):
+    """
+    Extra pages to crawl for the chatbot's knowledge base, beyond the one
+    URL the user actually scanned - a chatbot grounded in a single page
+    can't answer questions about anything else on the site. Tries
+    /sitemap.xml first (the standard location, gives a clean authoritative
+    page list); falls back to the internal links already collected from
+    the primary crawl when no sitemap exists or it fails to parse. Either
+    way: same-domain only, excludes the already-crawled base_url, deduped,
+    capped at `limit` - each extra page is a real additional browser fetch,
+    not a free list to grow unboundedly.
+    """
+    parsed_base = urlparse(base_url)
+    base_netloc = parsed_base.netloc
+    sitemap_url = f"{parsed_base.scheme}://{base_netloc}/sitemap.xml"
+
+    candidates = _fetch_sitemap_urls(sitemap_url, base_netloc)
+    if not candidates:
+        candidates = [
+            link for link in internal_links
+            if isinstance(link, str) and urlparse(link).netloc == base_netloc
+        ]
+
+    seen = {base_url.rstrip('/')}
+    deduped = []
+    for u in candidates:
+        normalized = u.rstrip('/')
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        deduped.append(u)
+        if len(deduped) >= limit:
+            break
+    return deduped
+
 async def main():
     if len(sys.argv) < 2:
         print(json.dumps({"success": False, "error": "No URL provided"}))
@@ -439,6 +522,35 @@ async def main():
                         elif isinstance(item, str):
                             internal_links.append(item)
 
+                # Crawl a bounded set of additional same-domain pages (see
+                # discover_pages_to_crawl's docstring) so the chatbot's
+                # knowledge base isn't limited to the one page the user
+                # scanned. Reuses this same crawler/browser context rather
+                # than spinning up a new one per page. Best-effort per page -
+                # one slow/broken page shouldn't fail the whole scan.
+                additional_pages = []
+                with tracer.start_as_current_span("additional_page_discovery") as pages_span:
+                    pages_to_crawl = discover_pages_to_crawl(url, internal_links)
+                    pages_span.set_attribute("pages_found", len(pages_to_crawl))
+                    for page_url in pages_to_crawl:
+                        try:
+                            page_result = await crawler.arun(
+                                url=page_url,
+                                bypass_cache=True,
+                                check_robots_txt=True,
+                                magic=True
+                            )
+                            page_markdown = ""
+                            if hasattr(page_result, "markdown") and page_result.markdown:
+                                page_markdown = page_result.markdown
+                            elif hasattr(page_result, "cleaned_html") and page_result.cleaned_html:
+                                page_markdown = page_result.cleaned_html
+                            if page_markdown:
+                                additional_pages.append({"url": page_url, "markdown": page_markdown})
+                        except Exception as page_err:
+                            sys.stderr.write(f"Additional page crawl failed for {page_url}: {page_err}\n")
+                    pages_span.set_attribute("pages_crawled", len(additional_pages))
+
                 html_content = ""
                 if hasattr(result, "html") and result.html:
                     html_content = result.html
@@ -481,6 +593,7 @@ async def main():
             "meta_description": desc or "",
             "markdown": markdown or "",
             "links": internal_links,
+            "additional_pages": additional_pages,
             "logo_url": logo_url,
             "site_images": site_images,
             "colors": colors,

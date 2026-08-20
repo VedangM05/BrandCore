@@ -48,12 +48,25 @@ export async function indexBrandKnowledge(brandDnaId: string): Promise<{ chunksI
     // mission?" should retrieve the synthesized answer directly rather
     // than relying on it being findable somewhere in raw markdown.
     const summaryParts = [row.title, row.tagline, row.mission, row.audience, row.value_proposition].filter(Boolean);
-    const chunks: Array<{ text: string; type: 'website_page' | 'brand_memory' }> = [];
+    const chunks: Array<{ text: string; type: 'website_page' | 'brand_memory'; sourceUrl?: string }> = [];
     if (summaryParts.length > 0) {
       chunks.push({ text: summaryParts.join('\n'), type: 'brand_memory' });
     }
     for (const c of chunkText(row.markdown_content || '')) {
       chunks.push({ text: c, type: 'website_page' });
+    }
+
+    // Additional same-domain pages crawled beyond the one the user scanned
+    // (crawl_pages, populated by dna.service.ts from crawl_agent.py's
+    // discover_pages_to_crawl) - without this, the chatbot could only ever
+    // answer questions grounded in that one page, not the rest of the site.
+    // Tagged with their real source URL so a retrieved chunk can be
+    // attributed to the actual page it came from, not just "the site".
+    const pagesRes = await query('SELECT url, markdown_content FROM crawl_pages WHERE crawl_result_id = $1', [brandDnaId]);
+    for (const page of pagesRes.rows) {
+      for (const c of chunkText(page.markdown_content || '')) {
+        chunks.push({ text: c, type: 'website_page', sourceUrl: page.url });
+      }
     }
 
     let indexed = 0;
@@ -63,6 +76,7 @@ export async function indexBrandKnowledge(brandDnaId: string): Promise<{ chunksI
         projectId: brandDnaId,
         type: chunk.type,
         text: chunk.text,
+        metadata: chunk.sourceUrl ? { sourceUrl: chunk.sourceUrl } : undefined,
       });
       if (ok) indexed++;
     }

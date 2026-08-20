@@ -42,3 +42,7 @@ uploads/*
 .claude/
 HANDOFF.md
 AI_Brand_Intelligence_Platform.md
+
+# Python bytecode cache
+__pycache__/
+*.pyc
