@@ -37,6 +37,7 @@ export const DashboardShell: React.FC<{ children?: React.ReactNode }> = ({ child
   };
 
   const [activeTab, setActiveTab] = useState<TabId>('campaigns');
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const viewRef = useRef<HTMLDivElement>(null);
 
   useGSAP(
@@ -177,7 +178,12 @@ export const DashboardShell: React.FC<{ children?: React.ReactNode }> = ({ child
   return (
     <div className="flex h-screen bg-brand-bg text-brand-text font-sans overflow-hidden">
       <a href="#dashboard-main" className="skip-link">Skip to content</a>
-      <Sidebar activeTab={activeTab} onTabChange={handleTabChange} />
+      <Sidebar
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        isMobileOpen={mobileNavOpen}
+        onMobileClose={() => setMobileNavOpen(false)}
+      />
 
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <WorkspaceHeader
@@ -186,6 +192,7 @@ export const DashboardShell: React.FC<{ children?: React.ReactNode }> = ({ child
           onSelectProject={selectProject}
           userEmail={user?.email}
           onLogout={handleLogout}
+          onMenuClick={() => setMobileNavOpen(true)}
         />
 
         <VerifyEmailBanner />

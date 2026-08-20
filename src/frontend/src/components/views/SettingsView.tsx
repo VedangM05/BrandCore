@@ -64,31 +64,6 @@ export const SettingsView: React.FC = () => {
         </section>
 
         <section className="panel p-6 space-y-4">
-          <div className="flex items-center justify-between border-b border-brand-border pb-3">
-            <div>
-              <h3 className="text-sm font-semibold text-brand-text">AI providers</h3>
-              <p className="text-xs text-brand-muted mt-0.5">API keys, read from the server environment.</p>
-            </div>
-          </div>
-
-          <div className="p-3.5 rounded-md bg-brand-sunken border border-brand-border flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-brand-text">Groq</p>
-              <p className="text-xs text-brand-muted mt-0.5">Copy, campaign ideas, text Brand QA, and chat answers.</p>
-              <p className="text-xs text-brand-muted font-mono mt-0.5">GROQ_API_KEY</p>
-            </div>
-          </div>
-
-          <div className="p-3.5 rounded-md bg-brand-sunken border border-brand-border flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-brand-text">Google Gemini</p>
-              <p className="text-xs text-brand-muted mt-0.5">Image Brand QA (vision) and knowledge-base embeddings.</p>
-              <p className="text-xs text-brand-muted font-mono mt-0.5">GEMINI_API_KEY</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="panel p-6 space-y-4">
           <div className="border-b border-brand-border pb-3">
             <h3 className="text-sm font-semibold text-brand-text">Notifications</h3>
             <p className="text-xs text-brand-muted mt-0.5">Delivery and background task alerts.</p>

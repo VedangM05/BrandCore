@@ -2,6 +2,87 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Design tokens as CSS custom properties (not just hardcoded hex in
+   tailwind.config.js) so the light/dark toggle can swap them at runtime
+   without a rebuild. [data-theme] is set on <html> by ThemeToggle.tsx,
+   persisted to localStorage; defaults to the OS preference via
+   prefers-color-scheme when the user hasn't chosen explicitly. Dark keeps
+   this app's own warm-monochrome character (a warm charcoal, not
+   slate-900/pure black; the same pine accent, brightened for contrast) -
+   not a generic inverted palette. */
+:root {
+  --color-bg: #FBFAF7;
+  --color-surface: #FFFFFF;
+  --color-sunken: #F4F2EC;
+  --color-border: #E7E4DB;
+  --color-border-strong: #D7D3C6;
+  --color-text: #17160F;
+  --color-muted: #6F6D60;
+  --color-faint: #A9A692;
+  --color-primary: #1F3B33;
+  --color-primary-hover: #15281F;
+  --color-primary-soft: #E7EEE9;
+  --color-primary-soft-text: #1F3B33;
+  --color-ink: #17160F;
+  --color-ink-hover: #26241A;
+  --color-state-success: #EDF3EC;
+  --color-state-success-text: #346538;
+  --color-state-danger: #FDEBEC;
+  --color-state-danger-text: #9F2F2D;
+  --color-state-warning: #FBF3DB;
+  --color-state-warning-text: #956400;
+}
+
+:root[data-theme='dark'] {
+  --color-bg: #17160F;
+  --color-surface: #201E15;
+  --color-sunken: #29271B;
+  --color-border: #37341F;
+  --color-border-strong: #464327;
+  --color-text: #F4F2EC;
+  --color-muted: #A9A692;
+  --color-faint: #6F6D60;
+  --color-primary: #5A9C89;
+  --color-primary-hover: #7AB6A4;
+  --color-primary-soft: #1E2E29;
+  --color-primary-soft-text: #8FC3B2;
+  --color-ink: #0F0E0A;
+  --color-ink-hover: #1A1810;
+  --color-state-success: #1B2E1D;
+  --color-state-success-text: #7FBF85;
+  --color-state-danger: #3A1D1C;
+  --color-state-danger-text: #E8918E;
+  --color-state-warning: #362C10;
+  --color-state-warning-text: #E0B84C;
+}
+
+@media (prefers-color-scheme: dark) {
+  /* Only applies before the user has ever chosen explicitly - ThemeToggle
+     always sets data-theme once touched, which wins over this. */
+  :root:not([data-theme]) {
+    --color-bg: #17160F;
+    --color-surface: #201E15;
+    --color-sunken: #29271B;
+    --color-border: #37341F;
+    --color-border-strong: #464327;
+    --color-text: #F4F2EC;
+    --color-muted: #A9A692;
+    --color-faint: #6F6D60;
+    --color-primary: #5A9C89;
+    --color-primary-hover: #7AB6A4;
+    --color-primary-soft: #1E2E29;
+    --color-primary-soft-text: #8FC3B2;
+    --color-ink: #0F0E0A;
+    --color-ink-hover: #1A1810;
+    --color-state-success: #1B2E1D;
+    --color-state-success-text: #7FBF85;
+    --color-state-danger: #3A1D1C;
+    --color-state-danger-text: #E8918E;
+    --color-state-warning: #362C10;
+    --color-state-warning-text: #E0B84C;
+  }
+}
+
 @layer base {
   html,
   body,
@@ -10,10 +91,11 @@
   }
 
   body {
-    background-color: #FBFAF7;
-    color: #17160F;
+    background-color: var(--color-bg);
+    color: var(--color-text);
     font-family: 'Outfit', -apple-system, system-ui, sans-serif;
     font-feature-settings: 'ss01' 1;
+    transition: background-color 0.15s ease, color 0.15s ease;
   }
 
   h1, h2, h3 {
@@ -25,8 +107,8 @@
   }
 
   ::selection {
-    background-color: #E7EEE9;
-    color: #1F3B33;
+    background-color: var(--color-primary-soft);
+    color: var(--color-primary-soft-text);
   }
 
   a {
@@ -34,7 +116,7 @@
   }
 
   :focus-visible {
-    outline: 2px solid #1F3B33;
+    outline: 2px solid var(--color-primary);
     outline-offset: 2px;
   }
 
@@ -49,8 +131,8 @@
   .skip-link:focus {
     left: 1rem;
     top: 1rem;
-    background: #17160F;
-    color: #FBFAF7;
+    background: var(--color-ink);
+    color: var(--color-bg);
     padding: 0.625rem 1rem;
     border-radius: 6px;
     font-size: 0.8125rem;
@@ -60,8 +142,8 @@
 
 @layer components {
   .panel {
-    background-color: #FFFFFF;
-    border: 1px solid #E7E4DB;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
     border-radius: 10px;
     box-shadow: 0 1px 1px 0 rgba(23, 22, 15, 0.03), 0 4px 16px -8px rgba(23, 22, 15, 0.08);
   }
@@ -71,8 +153,8 @@
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    background-color: #17160F;
-    color: #FBFAF7;
+    background-color: var(--color-ink);
+    color: var(--color-bg);
     padding: 0.625rem 1.25rem;
     border-radius: 6px;
     font-size: 0.875rem;
@@ -81,7 +163,7 @@
   }
 
   .btn-primary:hover:not(:disabled) {
-    background-color: #26241A;
+    background-color: var(--color-ink-hover);
   }
 
   .btn-primary:active:not(:disabled) {
@@ -98,9 +180,9 @@
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    background-color: #FFFFFF;
-    color: #17160F;
-    border: 1px solid #D7D3C6;
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border-strong);
     padding: 0.625rem 1.25rem;
     border-radius: 6px;
     font-size: 0.875rem;
@@ -109,8 +191,8 @@
   }
 
   .btn-secondary:hover:not(:disabled) {
-    background-color: #F4F2EC;
-    border-color: #A9A692;
+    background-color: var(--color-sunken);
+    border-color: var(--color-faint);
   }
 
   .btn-secondary:active:not(:disabled) {
@@ -124,22 +206,22 @@
 
   .input-field {
     width: 100%;
-    background-color: #FFFFFF;
-    border: 1px solid #D7D3C6;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border-strong);
     border-radius: 6px;
     padding: 0.625rem 0.875rem;
     font-size: 0.875rem;
-    color: #17160F;
+    color: var(--color-text);
     transition: border-color 150ms ease, box-shadow 150ms ease;
   }
 
   .input-field::placeholder {
-    color: #A9A692;
+    color: var(--color-faint);
   }
 
   .input-field:focus {
     outline: none;
-    border-color: #1F3B33;
+    border-color: var(--color-primary);
     box-shadow: 0 0 0 3px rgba(31, 59, 51, 0.1);
   }
 
@@ -151,24 +233,24 @@
     border-radius: 6px;
     font-size: 0.875rem;
     font-weight: 500;
-    color: #6F6D60;
+    color: var(--color-muted);
     transition: background-color 150ms ease, color 150ms ease;
   }
 
   .nav-item:hover {
-    background-color: #F4F2EC;
-    color: #17160F;
+    background-color: var(--color-sunken);
+    color: var(--color-text);
   }
 
   .nav-item-active {
-    background-color: #E7EEE9;
-    color: #1F3B33;
+    background-color: var(--color-primary-soft);
+    color: var(--color-primary-soft-text);
     font-weight: 600;
   }
 
   .stat-card {
-    background-color: #FFFFFF;
-    border: 1px solid #E7E4DB;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
     border-radius: 10px;
     padding: 1.25rem;
     display: flex;
@@ -198,12 +280,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #D7D3C6;
+  background: var(--color-border-strong);
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #A9A692;
+  background: var(--color-faint);
 }
 
 .workspace-container {

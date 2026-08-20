@@ -7,32 +7,34 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // References CSS custom properties (index.css) rather than
+        // hardcoded hex, so the light/dark toggle (ThemeToggle.tsx) can
+        // swap the actual values at runtime without a rebuild - the hex
+        // values themselves still live in exactly one place, index.css's
+        // :root / [data-theme='dark'] blocks, not duplicated here.
         brand: {
-          // Warm monochrome canvas - never pure white/black.
-          bg: '#FBFAF7',
-          surface: '#FFFFFF',
-          sunken: '#F4F2EC',
-          border: '#E7E4DB',
-          'border-strong': '#D7D3C6',
-          text: '#17160F',
-          muted: '#6F6D60',
-          faint: '#A9A692',
-          // Single considered accent - deep pine ink, not AI-indigo/purple.
-          primary: '#1F3B33',
-          'primary-hover': '#15281F',
-          'primary-soft': '#E7EEE9',
-          'primary-soft-text': '#1F3B33',
-          // Sidebar/inverse surface - warm charcoal, not slate-900 blue-black.
-          ink: '#17160F',
-          'ink-hover': '#26241A',
+          bg: 'var(--color-bg)',
+          surface: 'var(--color-surface)',
+          sunken: 'var(--color-sunken)',
+          border: 'var(--color-border)',
+          'border-strong': 'var(--color-border-strong)',
+          text: 'var(--color-text)',
+          muted: 'var(--color-muted)',
+          faint: 'var(--color-faint)',
+          primary: 'var(--color-primary)',
+          'primary-hover': 'var(--color-primary-hover)',
+          'primary-soft': 'var(--color-primary-soft)',
+          'primary-soft-text': 'var(--color-primary-soft-text)',
+          ink: 'var(--color-ink)',
+          'ink-hover': 'var(--color-ink-hover)',
         },
         state: {
-          success: '#EDF3EC',
-          'success-text': '#346538',
-          danger: '#FDEBEC',
-          'danger-text': '#9F2F2D',
-          warning: '#FBF3DB',
-          'warning-text': '#956400',
+          success: 'var(--color-state-success)',
+          'success-text': 'var(--color-state-success-text)',
+          danger: 'var(--color-state-danger)',
+          'danger-text': 'var(--color-state-danger-text)',
+          warning: 'var(--color-state-warning)',
+          'warning-text': 'var(--color-state-warning-text)',
         },
       },
       fontFamily: {
