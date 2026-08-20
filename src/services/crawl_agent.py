@@ -5,6 +5,8 @@ import traceback
 import urllib.parse
 import urllib.request
 import io
+import re
+from collections import Counter
 from PIL import Image
 import numpy as np
 from bs4 import BeautifulSoup
@@ -122,8 +124,7 @@ def extract_colors_from_image(image_url):
             filtered_pixels = pixels.tolist()
             
         hex_colors = [f"#{r:02x}{g:02x}{b:02x}" for r, g, b in filtered_pixels]
-        
-        from collections import Counter
+
         counter = Counter(hex_colors)
         
         dominant = []
@@ -145,6 +146,110 @@ def extract_colors_from_image(image_url):
     except Exception as e:
         sys.stderr.write(f"Color extraction error: {e}\n")
         return fallback_palette
+
+def _hex_to_rgb(hex_color):
+    hex_color = hex_color.lstrip('#')
+    if len(hex_color) == 3:
+        hex_color = ''.join(c * 2 for c in hex_color)
+    return tuple(int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def _is_brand_worthy(r, g, b):
+    # Filters out near-white, near-black, and low-saturation grays - almost
+    # always text/background/border colors in real-world CSS, not a brand
+    # accent (a button, a link, a highlighted section).
+    import colorsys
+    h, l, s = colorsys.rgb_to_hls(r / 255, g / 255, b / 255)
+    if l > 0.94 or l < 0.06:
+        return False
+    if s < 0.15:
+        return False
+    return True
+
+
+def _color_distance(c1, c2):
+    return sum((a - b) ** 2 for a, b in zip(c1, c2)) ** 0.5
+
+
+def _fetch_external_stylesheets(soup, base_url, limit=2):
+    # Plenty of real sites (especially anything built with Tailwind/a
+    # bundler) keep every color literal in an external .css file, not
+    # inline <style>/style="" - scanning only the raw crawled HTML would
+    # miss them entirely. Fetches up to `limit` linked stylesheets (capped
+    # deliberately - this can't become an unbounded number of requests per
+    # crawl) with the same short timeout/User-Agent pattern already used
+    # for the logo image fetch below. Best-effort: a failed/slow stylesheet
+    # fetch just contributes nothing, never blocks the crawl.
+    css_text = ""
+    links = soup.find_all("link", rel=lambda x: x and "stylesheet" in x.lower())
+    for link in links[:limit]:
+        href = link.get("href")
+        if not href:
+            continue
+        try:
+            css_url = urllib.parse.urljoin(base_url, href)
+            req = urllib.request.Request(
+                css_url,
+                headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'}
+            )
+            with urllib.request.urlopen(req, timeout=3) as response:
+                css_text += response.read().decode('utf-8', errors='ignore')
+        except Exception:
+            continue
+    return css_text
+
+
+def extract_colors_from_css(html_content):
+    """
+    Brand accent colors are far more reliably expressed in a site's actual
+    CSS (buttons, links, headers, highlighted sections) than in one small
+    logo image - a logo is frequently monochrome, an SVG (which PIL can't
+    even open - see extract_colors_from_image below), or missing entirely
+    (falls back to /favicon.ico), all of which previously meant color
+    extraction silently returned the same hardcoded fallback_palette
+    regardless of the site's actual design. This is now the primary color
+    source; extract_colors_from_image is only a fallback when this doesn't
+    find enough real signal (see main()).
+
+    Scans every hex/rgb() color literal in <style> blocks and inline
+    style="" attributes (already present in the crawled HTML - no extra
+    request needed), filters out near-white/near-black/low-saturation
+    grays, and ranks what's left by frequency, skipping near-duplicate
+    hues so the result is genuinely distinct accents, not four shades of
+    the same blue.
+    """
+    if not html_content:
+        return []
+
+    hex_pattern = re.compile(r'#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b')
+    rgb_pattern = re.compile(r'rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})')
+
+    candidates = []
+    for match in hex_pattern.finditer(html_content):
+        try:
+            candidates.append(_hex_to_rgb(match.group(0)))
+        except ValueError:
+            continue
+    for match in rgb_pattern.finditer(html_content):
+        r, g, b = (int(x) for x in match.groups())
+        if max(r, g, b) <= 255:
+            candidates.append((r, g, b))
+
+    filtered = [c for c in candidates if _is_brand_worthy(*c)]
+    if not filtered:
+        return []
+
+    counter = Counter(filtered)
+    dominant = []
+    for (r, g, b), _ in counter.most_common(40):
+        if any(_color_distance((r, g, b), _hex_to_rgb(d)) < 40 for d in dominant):
+            continue
+        dominant.append(f"#{r:02x}{g:02x}{b:02x}")
+        if len(dominant) >= 4:
+            break
+
+    return dominant
+
 
 def extract_dom_hierarchy(soup):
     elements = soup.find_all(["h1", "h2", "h3", "h4", "p"])
@@ -301,7 +406,17 @@ async def main():
             logo_span.set_attribute("logo_url", logo_url)
 
         with tracer.start_as_current_span("color_extraction") as color_span:
-            colors = extract_colors_from_image(logo_url)
+            # CSS is the primary source (see extract_colors_from_css's own
+            # docstring for why) - the logo image is only a fallback when
+            # CSS scanning doesn't turn up enough real signal (a very
+            # minimal page with no inline styles and no external
+            # stylesheets, for instance).
+            external_css = _fetch_external_stylesheets(soup, url)
+            colors = extract_colors_from_css(html_content + external_css)
+            color_span.set_attribute("color_source", "css")
+            if len(colors) < 2:
+                colors = extract_colors_from_image(logo_url)
+                color_span.set_attribute("color_source", "logo_image_fallback")
             color_span.set_attribute("extracted_colors", str(colors))
 
         with tracer.start_as_current_span("dom_hierarchy_parsing") as dom_span:
