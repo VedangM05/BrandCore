@@ -31,6 +31,17 @@ URLSET_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
 </urlset>
 """
 
+# Real, found live: basecamp.com/sitemap.xml uses relative <loc> values
+# (technically non-compliant with the sitemap protocol, which requires
+# absolute URLs, but real sites do it anyway) - <loc>/about</loc>, not
+# <loc>https://basecamp.com/about</loc>.
+RELATIVE_URLSET_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+ <url><loc>/about</loc></url>
+ <url><loc>/pricing</loc></url>
+</urlset>
+"""
+
 
 def _mock_response(body: bytes):
     cm = MagicMock()
@@ -53,6 +64,11 @@ class TestSitemapParsing(unittest.TestCase):
             urls = crawl_agent._fetch_sitemap_urls('https://example.com/sitemap.xml', 'example.com')
         self.assertEqual(urls, ['https://example.com/about', 'https://example.com/pricing'])
 
+    def test_resolves_relative_loc_urls_against_the_sitemap_url(self):
+        with patch('urllib.request.urlopen', return_value=_mock_response(RELATIVE_URLSET_XML)):
+            urls = crawl_agent._fetch_sitemap_urls('https://example.com/sitemap.xml', 'example.com')
+        self.assertEqual(urls, ['https://example.com/about', 'https://example.com/pricing'])
+
     def test_returns_empty_list_on_fetch_failure_not_an_exception(self):
         with patch('urllib.request.urlopen', side_effect=OSError('boom')):
             urls = crawl_agent._fetch_sitemap_urls('https://example.com/sitemap.xml', 'example.com')
@@ -62,6 +78,47 @@ class TestSitemapParsing(unittest.TestCase):
         with patch('urllib.request.urlopen', return_value=_mock_response(b'not xml at all')):
             urls = crawl_agent._fetch_sitemap_urls('https://example.com/sitemap.xml', 'example.com')
         self.assertEqual(urls, [])
+
+
+class TestOklchColorExtraction(unittest.TestCase):
+    """
+    Found live against basecamp.com: its entire CSS palette is defined as
+    OKLCH custom properties (`--oklch-blue: 0.5687 0.1602 254.08;`), zero
+    hex/rgb() literals anywhere - the hex/rgb-only version of this scanner
+    returned the same 4 near-white pixels for every color, sourced from a
+    logo image fallback rather than the real palette.
+    """
+
+    def test_converts_a_real_oklch_function_call(self):
+        # oklch(53% 0.2 25) is a saturated red-orange - just checking it's
+        # a real, distinct, plausible color, not asserting an exact hex
+        # value (the conversion math already has its own dedicated test).
+        css = 'a { color: oklch(53% 0.2 25); }'
+        colors = crawl_agent.extract_colors_from_css(css)
+        self.assertEqual(len(colors), 1)
+        r, g, b = crawl_agent._hex_to_rgb(colors[0])
+        self.assertGreater(r, g)  # a red/orange hue should have R as the dominant channel
+
+    def test_converts_basecamps_real_custom_property_pattern(self):
+        css = """
+        :root {
+          --oklch-blue: 0.5687 0.1602 254.08;
+          --oklch-green: 0.5506 0.1301 154.06;
+          --oklch-orange: 0.6743 0.2158 34.28;
+          --oklch-ink-4: 0.3209 0.0204 233.83;
+        }
+        """
+        colors = crawl_agent.extract_colors_from_css(css)
+        self.assertGreaterEqual(len(colors), 3)
+        # Real, previously-observed regression: the old hex/rgb-only scanner
+        # found zero colors here and silently fell back to a generic palette.
+        self.assertNotEqual(colors, [])
+
+    def test_oklch_conversion_matches_known_reference_values(self):
+        # oklch(1 0 0) is pure white, oklch(0 0 0) is pure black - the two
+        # values every OKLCH implementation must get exactly right.
+        self.assertEqual(crawl_agent._oklch_to_rgb(1.0, 0.0, 0.0), (255, 255, 255))
+        self.assertEqual(crawl_agent._oklch_to_rgb(0.0, 0.0, 0.0), (0, 0, 0))
 
 
 class TestDiscoverPagesToCrawl(unittest.TestCase):

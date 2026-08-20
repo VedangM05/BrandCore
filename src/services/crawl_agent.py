@@ -6,6 +6,7 @@ import urllib.parse
 import urllib.request
 import io
 import re
+import math
 import xml.etree.ElementTree as ET
 from collections import Counter
 from urllib.parse import urlparse
@@ -201,6 +202,37 @@ def _hex_to_rgb(hex_color):
         hex_color = ''.join(c * 2 for c in hex_color)
     return tuple(int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
 
+def _oklch_to_rgb(L, C, H):
+    """
+    OKLCH -> sRGB, the standard CSS Color 4 conversion (Bjorn Ottosson's
+    OKLab matrices). Real, not a niche edge case: OKLCH is CSS's modern
+    default for defining a color palette (Tailwind v4 ships OKLCH by
+    default) precisely because it's perceptually uniform - exactly the
+    kind of design-system-driven site this scanner most needs to read
+    accurately. A hex/rgb()-only scanner sees zero colors on a site that
+    defines its entire palette this way (confirmed live against
+    basecamp.com, which defines every brand color as
+    "--oklch-x: L C H" custom properties with no hex/rgb literal
+    anywhere in its CSS).
+    """
+    h_rad = math.radians(H)
+    a = C * math.cos(h_rad)
+    b = C * math.sin(h_rad)
+    l_ = L + 0.3963377774 * a + 0.2158037573 * b
+    m_ = L - 0.1055613458 * a - 0.0638541728 * b
+    s_ = L - 0.0894841775 * a - 1.2914855480 * b
+    l3, m3, s3 = l_ ** 3, m_ ** 3, s_ ** 3
+    r = 4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3
+    g = -1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3
+    b2 = -0.0041960863 * l3 - 0.7034186147 * m3 + 1.7076147010 * s3
+
+    def to_srgb_byte(c):
+        c = max(0.0, min(1.0, c))
+        c = 12.92 * c if c <= 0.0031308 else 1.055 * (c ** (1 / 2.4)) - 0.055
+        return max(0, min(255, round(c * 255)))
+
+    return to_srgb_byte(r), to_srgb_byte(g), to_srgb_byte(b2)
+
 
 def _is_brand_worthy(r, g, b):
     # Filters out near-white, near-black, and low-saturation grays - almost
@@ -259,18 +291,25 @@ def extract_colors_from_css(html_content):
     source; extract_colors_from_image is only a fallback when this doesn't
     find enough real signal (see main()).
 
-    Scans every hex/rgb() color literal in <style> blocks and inline
-    style="" attributes (already present in the crawled HTML - no extra
-    request needed), filters out near-white/near-black/low-saturation
-    grays, and ranks what's left by frequency, skipping near-duplicate
-    hues so the result is genuinely distinct accents, not four shades of
-    the same blue.
+    Scans every hex/rgb()/oklch() color literal in <style> blocks and
+    inline style="" attributes (already present in the crawled HTML - no
+    extra request needed), plus custom-property declarations holding a raw
+    "L C H" triple (`--oklch-blue: 0.5687 0.1602 254.08;`) - a real,
+    common pattern for sites that reference the color via
+    oklch(var(--x)) elsewhere rather than repeating the literal each time.
+    Filters out near-white/near-black/low-saturation grays, and ranks
+    what's left by frequency, skipping near-duplicate hues so the result
+    is genuinely distinct accents, not four shades of the same blue.
     """
     if not html_content:
         return []
 
     hex_pattern = re.compile(r'#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b')
     rgb_pattern = re.compile(r'rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})')
+    oklch_fn_pattern = re.compile(r'oklch\(\s*([\d.]+)%?\s+([\d.]+)\s+([\d.]+)')
+    # `--some-oklch-name: 0.57 0.16 254.08;` - a raw LCH triple in a custom
+    # property whose name mentions the color space, not a full oklch() call.
+    oklch_var_pattern = re.compile(r'--[\w-]*(?:oklch|lch)[\w-]*\s*:\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)', re.IGNORECASE)
 
     candidates = []
     for match in hex_pattern.finditer(html_content):
@@ -282,6 +321,15 @@ def extract_colors_from_css(html_content):
         r, g, b = (int(x) for x in match.groups())
         if max(r, g, b) <= 255:
             candidates.append((r, g, b))
+    for pattern in (oklch_fn_pattern, oklch_var_pattern):
+        for match in pattern.finditer(html_content):
+            try:
+                L, C, H = (float(x) for x in match.groups())
+                if L > 1:  # a percentage like "58%" already stripped of '%' -> 0-100 scale
+                    L /= 100
+                candidates.append(_oklch_to_rgb(L, C, H))
+            except (ValueError, OverflowError):
+                continue
 
     filtered = [c for c in candidates if _is_brand_worthy(*c)]
     if not filtered:
@@ -429,7 +477,11 @@ def _fetch_sitemap_urls(sitemap_url, base_netloc, seen=None, depth=0):
                 continue
             loc = next((c.text for c in sitemap_el if local_tag(c) == 'loc' and c.text), None)
             if loc:
-                return _fetch_sitemap_urls(loc, base_netloc, seen, depth + 1)
+                # Real-world sitemaps aren't always spec-compliant absolute
+                # URLs (confirmed live: basecamp.com/sitemap.xml uses
+                # <loc>/about</loc>, not the full URL) - resolve relative to
+                # the sitemap's own URL before following it.
+                return _fetch_sitemap_urls(urllib.parse.urljoin(sitemap_url, loc), base_netloc, seen, depth + 1)
         return []
 
     urls = []
@@ -437,8 +489,11 @@ def _fetch_sitemap_urls(sitemap_url, base_netloc, seen=None, depth=0):
         if local_tag(url_el) != 'url':
             continue
         loc = next((c.text for c in url_el if local_tag(c) == 'loc' and c.text), None)
-        if loc and urlparse(loc).netloc == base_netloc:
-            urls.append(loc.strip())
+        if not loc:
+            continue
+        abs_loc = urllib.parse.urljoin(sitemap_url, loc.strip())
+        if urlparse(abs_loc).netloc == base_netloc:
+            urls.append(abs_loc)
     return urls
 
 def discover_pages_to_crawl(base_url, internal_links, limit=MAX_ADDITIONAL_PAGES):
