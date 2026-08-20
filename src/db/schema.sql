@@ -67,6 +67,12 @@ ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS tagline VARCHAR(255);
 ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS mission TEXT;
 ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS audience TEXT;
 ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS value_proposition TEXT;
+-- Candidate real product/hero images found on the site during the crawl
+-- (crawl_agent.py's extract_site_images) - [{ url, alt }, ...]. Lets
+-- photoshoot.service.ts prefer a real site asset over generating a fake
+-- one when the user's request plausibly matches something that already
+-- exists.
+ALTER TABLE crawl_results ADD COLUMN IF NOT EXISTS site_images JSONB;
 
 CREATE TABLE IF NOT EXISTS campaigns (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

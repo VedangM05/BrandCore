@@ -181,6 +181,16 @@ async function runArtDirectorNode(prompt: string, brandDna: any, feedback?: stri
     const font = brandDna.font_pairings || 'Inter & Roboto';
 
     let imagePrompt = `High-end commercial visual for ${brandName} presenting ${prompt}, styled with ${colors.join(', ')} color accents and ${font} typography.`;
+    // Previously only name/colors/font made it in here despite tone/mission
+    // already being scanned and sitting unused - every brand's campaign
+    // visuals got the same generic "high-end commercial" direction
+    // regardless of whether the brand is playful or clinical.
+    if (brandDna.tone) {
+      imagePrompt += ` Overall mood: ${brandDna.tone}.`;
+    }
+    if (brandDna.mission) {
+      imagePrompt += ` Should feel true to this brand's purpose: ${brandDna.mission}.`;
+    }
     let visualStyle = 'Minimalist Studio Lighting';
 
     if (feedback) {

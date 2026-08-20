@@ -37,6 +37,7 @@ export interface DnaScanResult {
   markdown: string;
   links: string[];
   logo_url: string;
+  site_images: { url: string; alt: string }[];
   colors: string[];
   font_pairings: string;
   tone: string;
@@ -143,8 +144,8 @@ export async function runDnaScan(url: string, userId: string): Promise<DnaScanRe
 
       const upsertRes = await query(
         `INSERT INTO crawl_results
-        (job_id, domain, url, title, meta_description, markdown_content, logo_url, colors, font_pairings, tone, dom_hierarchy, tagline, mission, audience, value_proposition, user_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        (job_id, domain, url, title, meta_description, markdown_content, logo_url, site_images, colors, font_pairings, tone, dom_hierarchy, tagline, mission, audience, value_proposition, user_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         ON CONFLICT (user_id, url) DO UPDATE SET
           job_id = EXCLUDED.job_id,
           domain = EXCLUDED.domain,
@@ -152,6 +153,7 @@ export async function runDnaScan(url: string, userId: string): Promise<DnaScanRe
           meta_description = EXCLUDED.meta_description,
           markdown_content = EXCLUDED.markdown_content,
           logo_url = EXCLUDED.logo_url,
+          site_images = EXCLUDED.site_images,
           colors = EXCLUDED.colors,
           font_pairings = EXCLUDED.font_pairings,
           tone = EXCLUDED.tone,
@@ -169,6 +171,7 @@ export async function runDnaScan(url: string, userId: string): Promise<DnaScanRe
           parsed.meta_description,
           parsed.markdown,
           parsed.logo_url,
+          JSON.stringify(parsed.site_images || []),
           synthesized.colors,
           synthesized.fontPairing,
           synthesized.tone,
@@ -222,6 +225,7 @@ export async function runDnaScan(url: string, userId: string): Promise<DnaScanRe
         markdown: parsed.markdown,
         links: parsed.links,
         logo_url: parsed.logo_url,
+        site_images: parsed.site_images || [],
         colors: synthesized.colors,
         font_pairings: synthesized.fontPairing,
         tone: synthesized.tone,

@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { trace, SpanStatusCode, Span } from '@opentelemetry/api';
-import { generateImage, GeneratedImage } from './image.service';
+import { generateImage, fetchSiteImage, GeneratedImage } from './image.service';
 import { compositeHeadlineOnImage, normalizeImage } from './composite.service';
 import { resolveBrandDna } from './brandDna.service';
 import { runImageBrandQaNode, ImageQaResult, getCachedOrGenerateCopyAndArt } from './creative.service';
@@ -57,7 +57,19 @@ function buildBrandVisualPrefix(brandDna: any): string {
   const brandName = brandDna.title || brandDna.domain || '';
   const colors: string[] = brandDna.colors || [];
   const colorPhrase = colors.length > 0 ? `a color palette echoing ${colors.slice(0, 3).join(', ')}` : 'a neutral, premium color palette';
-  return `Professional commercial photography for the brand "${brandName}", ${colorPhrase}.`;
+  let prefix = `Professional commercial photography for the brand "${brandName}", ${colorPhrase}.`;
+  // Previously only title/colors made it into the visual prompt despite
+  // tone/mission/audience already being scanned and sitting unused right
+  // here - a "playful, irreverent" brand and a "clinical, precise" one got
+  // the exact same generic photography direction. Kept short (one clause
+  // each) since this is steering visual mood, not writing more copy.
+  if (brandDna.tone) {
+    prefix += ` The visual mood should feel ${brandDna.tone}.`;
+  }
+  if (brandDna.audience) {
+    prefix += ` Shot with this brand's actual audience in mind: ${brandDna.audience}.`;
+  }
+  return prefix;
 }
 
 // Image models render text unreliably (garbled signage, mangled letters), so every
@@ -75,6 +87,55 @@ interface ImageAttempt {
   qa: ImageQaResult;
 }
 
+interface SiteImage {
+  url: string;
+  alt: string;
+}
+
+const STOPWORDS = new Set([
+  'a', 'an', 'the', 'of', 'on', 'in', 'with', 'for', 'and', 'to', 'at',
+  'is', 'it', 'this', 'that', 'our', 'your', 'from', 'by',
+]);
+
+function significantWords(text: string): Set<string> {
+  return new Set(
+    (text.toLowerCase().match(/[a-z0-9]+/g) || []).filter((w) => w.length > 2 && !STOPWORDS.has(w))
+  );
+}
+
+/**
+ * Best-effort keyword overlap between the requested scene and a candidate
+ * site image's alt text - deliberately a cheap heuristic, not semantic/
+ * vision matching (Pollinations has no image-to-image capability, and
+ * running every request through Gemini vision just to pick a candidate
+ * would add real latency/cost for a "nice to have" match). Requires at
+ * least 2 shared significant words (or 1 when the alt text itself is very
+ * short) so a single generic overlap like "product" doesn't misfire on
+ * every request - false negatives (falling through to generation) are the
+ * safe failure mode here, not false positives.
+ */
+export function findMatchingSiteImage(matchText: string, siteImages: SiteImage[] | undefined): SiteImage | null {
+  if (!siteImages || siteImages.length === 0) return null;
+  const requestWords = significantWords(matchText);
+  if (requestWords.size === 0) return null;
+
+  let best: SiteImage | null = null;
+  let bestScore = 0;
+  for (const img of siteImages) {
+    if (!img.alt) continue;
+    const altWords = significantWords(img.alt);
+    if (altWords.size === 0) continue;
+    let overlap = 0;
+    for (const w of requestWords) if (altWords.has(w)) overlap++;
+    const threshold = altWords.size <= 3 ? 1 : 2;
+    if (overlap >= threshold && overlap > bestScore) {
+      bestScore = overlap;
+      best = img;
+    }
+  }
+  return best;
+}
+
 /**
  * Generates an image and runs it through Brand QA (runImageBrandQaNode).
  * Previously photoshoot.service.ts had no QA step at all - a garbled or
@@ -84,14 +145,43 @@ interface ImageAttempt {
  * MAX_IMAGE_ATTEMPTS times, return as soon as one passes, and fall back to
  * whichever attempt scored highest if none did - a fixed, predictable cost
  * ceiling per generation instead of retrying indefinitely.
+ *
+ * Before generating anything: if the brand's own scanned site already has a
+ * real image that plausibly matches what's being asked for
+ * (findMatchingSiteImage against brandDna.site_images), use that real asset
+ * directly instead of fabricating one - a real product photo beats an
+ * AI-generated approximation of it. `matchText` is the raw, pre-AI-enriched
+ * scene description (not the fully styled generation prompt) since that's
+ * what a human-written alt text is actually likely to resemble; falls back
+ * to matching against `prompt` itself when the caller has nothing shorter.
+ * A matched image that fails to fetch (dead link, timeout) falls through to
+ * normal generation rather than failing the request.
  */
 async function generateBrandQaApprovedImage(
   prompt: string,
   width: number,
   height: number,
   brandDna: any,
-  seedBase?: number
+  seedBase?: number,
+  matchText?: string
 ): Promise<ImageAttempt> {
+  const match = findMatchingSiteImage(matchText || prompt, brandDna?.site_images);
+  if (match) {
+    try {
+      const generated = await fetchSiteImage(match.url, width, height);
+      return {
+        generated,
+        qa: {
+          isApproved: true,
+          score: 100,
+          feedback: `Used the brand's own existing image (matched alt text: "${match.alt}") instead of generating one.`,
+        },
+      };
+    } catch (err: any) {
+      console.warn('[Photoshoot] Matched site image failed to fetch, falling back to generation:', err.message);
+    }
+  }
+
   const baseSeed = seedBase ?? Math.floor(Math.random() * 1_000_000);
   const attempts: ImageAttempt[] = [];
 
@@ -136,7 +226,7 @@ export async function generatePhotoshootImage(
       span.setAttribute('photoshoot.brand_dna_id', validDnaId || 'none');
       span.setAttribute('photoshoot.aspect', aspect || 'default');
 
-      const { generated, qa } = await generateBrandQaApprovedImage(fullPrompt, width, height, brandDna);
+      const { generated, qa } = await generateBrandQaApprovedImage(fullPrompt, width, height, brandDna, undefined, scenePrompt);
       const normalized = await normalizeImage(generated.buffer, width, height);
       const filePath = saveBufferToUploads(normalized, 'jpg');
 
@@ -213,7 +303,7 @@ export async function generateCampaignPost(
       const brandPrefix = buildBrandVisualPrefix(brandDna);
       const imagePrompt = `${brandPrefix} ${art.imagePrompt} ${NO_TEXT_DIRECTIVE} The headline text will be composited on afterward - the generated scene itself must stay completely text-free.`;
 
-      const { generated, qa } = await generateBrandQaApprovedImage(imagePrompt, width, height, brandDna);
+      const { generated, qa } = await generateBrandQaApprovedImage(imagePrompt, width, height, brandDna, undefined, prompt);
       const rawBackground = await normalizeImage(generated.buffer, width, height);
       const eyebrow = brandDna.title || brandDna.domain || undefined;
       const accentColor = (brandDna.colors || [])[0];
@@ -351,7 +441,7 @@ export async function generateCarousel(
         );
 
         const imagePrompt = `${brandPrefix} ${art.imagePrompt} ${NO_TEXT_DIRECTIVE} The headline text will be composited on afterward - the generated scene itself must stay completely text-free.`;
-        const { generated, qa } = await generateBrandQaApprovedImage(imagePrompt, width, height, brandDna, i * 7919);
+        const { generated, qa } = await generateBrandQaApprovedImage(imagePrompt, width, height, brandDna, i * 7919, slidePrompt);
         const rawBackground = await normalizeImage(generated.buffer, width, height);
         const eyebrow = `${i + 1} / ${clampedCount}`;
         const accentColor = (brandDna.colors || [])[0];

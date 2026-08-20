@@ -88,6 +88,52 @@ def identify_logo(soup, base_url):
     # Default fallback: /favicon.ico
     return urllib.parse.urljoin(base_url, "/favicon.ico")
 
+# Filenames/alt text containing any of these almost never point at a real
+# product/hero photo - icons, UI chrome, tracking pixels, etc.
+_NON_PHOTO_HINTS = ["icon", "sprite", "pixel", "spacer", "avatar", "badge", "logo", "placeholder"]
+
+def extract_site_images(soup, base_url, logo_url):
+    """
+    Candidate real product/brand imagery already on the site - captured so
+    AI Photoshoot generation can prefer a real asset over fabricating one
+    when the user's request plausibly matches something that already
+    exists (see photoshoot.service.ts's findMatchingSiteImage). This is a
+    lightweight signal, not a full media library: filtered to likely-real
+    photos (skips tiny images via width/height attrs when present, skips
+    anything matching common non-photo filename/alt-text hints, skips the
+    site's own logo since that's already captured separately) and capped
+    at 12 entries.
+    """
+    images = []
+    seen = {logo_url}
+    for img in soup.find_all("img"):
+        src = img.get("src") or img.get("data-src")
+        if not src:
+            continue
+        abs_url = urllib.parse.urljoin(base_url, src)
+        if abs_url in seen:
+            continue
+
+        width = img.get("width")
+        height = img.get("height")
+        try:
+            if (width and int(width) < 120) or (height and int(height) < 120):
+                continue
+        except (ValueError, TypeError):
+            pass
+
+        alt = (img.get("alt") or "").strip()
+        lowered = abs_url.lower()
+        if any(hint in lowered for hint in _NON_PHOTO_HINTS) or any(hint in alt.lower() for hint in _NON_PHOTO_HINTS):
+            continue
+
+        seen.add(abs_url)
+        images.append({"url": abs_url, "alt": alt})
+        if len(images) >= 12:
+            break
+
+    return images
+
 def extract_colors_from_image(image_url):
     # Returns hex colors list
     fallback_palette = ['#4f46e5', '#f97316', '#0ea5e9', '#10b981']
@@ -405,6 +451,10 @@ async def main():
             logo_url = identify_logo(soup, url)
             logo_span.set_attribute("logo_url", logo_url)
 
+        with tracer.start_as_current_span("site_image_capture") as image_span:
+            site_images = extract_site_images(soup, url, logo_url)
+            image_span.set_attribute("site_images_found", len(site_images))
+
         with tracer.start_as_current_span("color_extraction") as color_span:
             # CSS is the primary source (see extract_colors_from_css's own
             # docstring for why) - the logo image is only a fallback when
@@ -432,6 +482,7 @@ async def main():
             "markdown": markdown or "",
             "links": internal_links,
             "logo_url": logo_url,
+            "site_images": site_images,
             "colors": colors,
             "font_pairings": font_pairing,
             "tone": tone,

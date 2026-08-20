@@ -132,3 +132,43 @@ export async function generateImage(options: GenerateImageOptions): Promise<Gene
     throw error;
   });
 }
+
+const SITE_IMAGE_TIMEOUT_MS = 15000;
+
+/**
+ * Downloads a real image already on the scanned brand's own site (captured
+ * by crawl_agent.py's extract_site_images), shaped like a GeneratedImage so
+ * photoshoot.service.ts's pipeline (QA, compositing, normalizeImage) can
+ * treat it identically to a Pollinations render - see
+ * findMatchingSiteImage/generateBrandQaApprovedImage. `provider: 'site-asset'`
+ * distinguishes it from a genuinely AI-generated image in asset metadata.
+ */
+export async function fetchSiteImage(url: string, width: number, height: number): Promise<GeneratedImage> {
+  return tracer.startActiveSpan('fetch_site_image', async (span) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), SITE_IMAGE_TIMEOUT_MS);
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (!response.ok) {
+        throw new Error(`Site image fetch failed with status ${response.status}`);
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      if (buffer.length === 0) {
+        throw new Error('Site image fetch returned an empty response body');
+      }
+      const mimeType = response.headers.get('content-type') || 'image/jpeg';
+      span.setAttribute('image.bytes', buffer.length);
+      span.setStatus({ code: SpanStatusCode.OK });
+      return { buffer, mimeType, provider: 'site-asset', model: 'existing-site-image', prompt: url, width, height };
+    } catch (err: any) {
+      clearTimeout(timeout);
+      span.recordException(err);
+      span.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
+      throw err;
+    } finally {
+      span.end();
+    }
+  });
+}
