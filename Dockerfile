@@ -35,6 +35,16 @@ RUN python3 -m venv .venv \
 # --- Application source + build ---
 COPY . .
 
+# Google OAuth client ID has to be baked into the frontend bundle at build
+# time (Vite substitutes VITE_* vars when it compiles, not at container
+# startup) - .env itself is deliberately excluded from the build context
+# (see .dockerignore) since it also holds real secrets, so this one public,
+# non-secret value comes in via a build arg instead (see docker-compose.yml).
+# Without it, the Google Sign-In button just doesn't render (no broken UI) -
+# same fallback as running `vite build` locally with no .env at all.
+ARG VITE_GOOGLE_CLIENT_ID=""
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
+
 # Builds the frontend (vite -> dist/client, served by app.ts in production -
 # see the static-serving block added there). The backend is run directly via
 # tsx (already a dependency, same as `npm run dev` uses locally) rather than

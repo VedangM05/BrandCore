@@ -34,7 +34,21 @@ services:
     restart: unless-stopped
 
   app:
-    build: .
+    build:
+      context: .
+      args:
+        # .env is deliberately .dockerignore'd for security, but the frontend
+        # build (vite build, inside this image) needs this baked in at BUILD
+        # time - Vite substitutes VITE_* vars into the bundle when it
+        # compiles, not when the container starts. A Google OAuth client ID
+        # is meant to be public (every frontend using it ships it in the
+        # bundle by design), so passing it as a build arg here isn't a
+        # secret leak - unlike JWT/DB secrets, which correctly stay
+        # runtime-only `environment:` entries below, never build args.
+        # Reads from your .env automatically (docker compose's own env-file
+        # support, not the Docker build context) - leave blank/unset and the
+        # button just doesn't render (see GoogleAuthButton.tsx), no broken UI.
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
     depends_on:
       postgres:
         condition: service_healthy
