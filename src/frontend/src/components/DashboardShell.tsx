@@ -72,6 +72,11 @@ export const DashboardShell: React.FC<{ children?: React.ReactNode }> = ({ child
         tone?: string;
         font_pairings?: string;
         tagline?: string;
+        mission?: string;
+        audience?: string;
+        value_proposition?: string;
+        logo_url?: string;
+        site_images?: { url: string; alt: string }[];
       }>('/api/dna/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -90,6 +95,11 @@ export const DashboardShell: React.FC<{ children?: React.ReactNode }> = ({ child
         tone: extractedTone,
         font: extractedFont,
         tagline: data.tagline,
+        mission: data.mission,
+        audience: data.audience,
+        valueProposition: data.value_proposition,
+        logoUrl: data.logo_url,
+        siteImages: data.site_images,
       };
 
       setDnaResults(resultsPayload);

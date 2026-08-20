@@ -170,7 +170,12 @@ describe('DashboardShell Integration & Component Tests', () => {
       expect(screen.getAllByText('NIKE')[0]).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Modern, Professional, and Innovative')).toBeInTheDocument();
+    // Tone renders as chips (Business Details tab), split from the raw
+    // "Modern, Professional, and Innovative" string - not one paragraph.
+    fireEvent.click(screen.getByRole('button', { name: 'Business Details' }));
+    expect(screen.getByText('Modern')).toBeInTheDocument();
+    expect(screen.getByText('Professional')).toBeInTheDocument();
+    expect(screen.getByText('Innovative')).toBeInTheDocument();
 
     (global as any).fetch = originalFetch;
   });

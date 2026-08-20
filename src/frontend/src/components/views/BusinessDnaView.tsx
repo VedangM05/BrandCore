@@ -36,6 +36,28 @@ interface EditableDna {
   colors: string[];
 }
 
+// Backend tone strings are already synthesized as short comma-separated
+// descriptors (e.g. "Modern, Professional, and Innovative") - split into
+// chips instead of one paragraph blob so the tone reads as scannable
+// keywords, not prose to parse.
+function toneChips(tone: string): string[] {
+  return tone
+    .replace(/\band\b/gi, ',')
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
+// font_pairings is stored as one string like "Inter & Roboto" - split on
+// the separator so each font gets its own "Aa" preview instead of just
+// printing the raw string.
+function fontNames(font: string): string[] {
+  return font
+    .split(/&|\band\b/i)
+    .map((f) => f.trim())
+    .filter(Boolean);
+}
+
 function toEditable(results: DnaResults): EditableDna {
   return {
     brandName: results.brandName,
@@ -64,6 +86,7 @@ export const BusinessDnaView: React.FC<BusinessDnaViewProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [resultTab, setResultTab] = useState<'overview' | 'details'>('overview');
 
   useGSAP(
     () => {
@@ -150,7 +173,11 @@ export const BusinessDnaView: React.FC<BusinessDnaViewProps> = ({
       });
 
       const updatedResults: DnaResults = {
-        id: results.id,
+        // Only brandName/tagline/tone/font/colors are actually editable
+        // here - spread the rest of the existing profile (mission,
+        // audience, logo, etc.) first so a correction doesn't silently
+        // wipe fields the edit form never touched.
+        ...results,
         brandName: draft.brandName,
         tagline: draft.tagline,
         tone: draft.tone,
@@ -232,9 +259,19 @@ export const BusinessDnaView: React.FC<BusinessDnaViewProps> = ({
       {results && (
         <div ref={resultsRef} className="space-y-5">
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <h3 className="font-display text-2xl tracking-tight text-brand-text">
-              Profile for {results.brandName}
-            </h3>
+            <div className="flex items-center gap-3">
+              {results.logoUrl && (
+                <img
+                  src={results.logoUrl}
+                  alt={`${results.brandName} logo`}
+                  className="w-10 h-10 rounded-md border border-brand-border object-contain bg-white p-1 shrink-0"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
+              )}
+              <h3 className="font-display text-2xl tracking-tight text-brand-text">
+                Profile for {results.brandName}
+              </h3>
+            </div>
             <div className="flex items-center gap-2">
               {saved && !isEditing && (
                 <span className="text-xs font-medium text-state-success-text bg-state-success px-2.5 py-1 rounded-md inline-flex items-center gap-1.5">
@@ -394,81 +431,170 @@ export const BusinessDnaView: React.FC<BusinessDnaViewProps> = ({
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="panel p-6 space-y-5">
-                <div className="flex items-center justify-between border-b border-brand-border pb-3">
-                  <h4 className="font-semibold text-brand-text text-sm">Visual style kit</h4>
-                  <span className="tag bg-brand-primary-soft text-brand-primary-soft-text">Extracted</span>
-                </div>
-
-                <div>
-                  <span className="text-xs font-medium uppercase tracking-wide text-brand-muted block mb-2.5">
-                    Color palette &middot; click to copy
-                  </span>
-                  <div className="grid grid-cols-4 gap-2.5">
-                    {results.colors.map((color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={() => handleCopyHex(color)}
-                        className="group text-center focus:outline-none"
-                      >
-                        <div
-                          className="w-full h-12 rounded-md border border-brand-border relative flex items-center justify-center transition-transform group-hover:scale-105"
-                          style={{ backgroundColor: color }}
-                        >
-                          {copiedHex === color && (
-                            <span className="text-[10px] font-semibold bg-brand-ink text-brand-bg px-1.5 py-0.5 rounded">
-                              Copied
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[10px] font-mono text-brand-muted group-hover:text-brand-text mt-1.5 block">
-                          {color}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="pt-1">
-                  <span className="text-xs font-medium uppercase tracking-wide text-brand-muted block mb-2">
-                    Typography pairing
-                  </span>
-                  <div className="p-3.5 rounded-md bg-brand-sunken border border-brand-border">
-                    <p className="text-sm font-semibold text-brand-text">{results.font}</p>
-                    <p className="text-xs text-brand-muted mt-0.5">Header and body font system</p>
-                  </div>
-                </div>
+            <div className="panel p-6 space-y-5">
+              <div className="flex gap-1 border-b border-brand-border -mt-1 -mx-1 px-1">
+                {(['overview', 'details'] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setResultTab(tab)}
+                    className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                      resultTab === tab
+                        ? 'border-brand-primary text-brand-text'
+                        : 'border-transparent text-brand-muted hover:text-brand-text'
+                    }`}
+                  >
+                    {tab === 'overview' ? 'Brand Overview' : 'Business Details'}
+                  </button>
+                ))}
               </div>
 
-              <div className="panel p-6 space-y-5">
-                <div className="flex items-center justify-between border-b border-brand-border pb-3">
-                  <h4 className="font-semibold text-brand-text text-sm">Voice and identity</h4>
-                  <span className="tag bg-state-success text-state-success-text">Validated</span>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <span className="text-xs font-medium uppercase tracking-wide text-brand-muted block mb-1.5">
-                      Tone of voice
-                    </span>
-                    <p className="text-sm text-brand-text bg-brand-sunken p-3.5 rounded-md border border-brand-border leading-relaxed">
-                      {results.tone}
-                    </p>
+              {resultTab === 'overview' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="p-4 rounded-md bg-brand-sunken border border-brand-border flex items-center gap-3.5 md:col-span-2">
+                    {results.logoUrl && (
+                      <img
+                        src={results.logoUrl}
+                        alt={`${results.brandName} logo`}
+                        className="w-14 h-14 rounded-md border border-brand-border object-contain bg-white p-1.5 shrink-0"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-lg font-display tracking-tight text-brand-text truncate">{results.brandName}</p>
+                      {results.tagline && <p className="text-xs text-brand-muted mt-0.5">{results.tagline}</p>}
+                      {websiteUrl && (
+                        <a
+                          href={websiteUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-brand-primary hover:underline mt-0.5 inline-block truncate max-w-full"
+                        >
+                          {websiteUrl}
+                        </a>
+                      )}
+                    </div>
                   </div>
 
                   <div>
-                    <span className="text-xs font-medium uppercase tracking-wide text-brand-muted block mb-1.5">
-                      Detected brand
+                    <span className="text-xs font-medium uppercase tracking-wide text-brand-muted block mb-2.5">
+                      Color palette &middot; click to copy
                     </span>
-                    <div className="p-3.5 rounded-md bg-brand-primary-soft border border-brand-border">
-                      <p className="text-lg font-display tracking-tight text-brand-primary-soft-text">{results.brandName}</p>
-                      {results.tagline && <p className="text-xs text-brand-muted mt-0.5">{results.tagline}</p>}
+                    <div className="grid grid-cols-4 gap-2.5">
+                      {results.colors.map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => handleCopyHex(color)}
+                          className="group text-center focus:outline-none"
+                        >
+                          <div
+                            className="w-full h-12 rounded-md border border-brand-border relative flex items-center justify-center transition-transform group-hover:scale-105"
+                            style={{ backgroundColor: color }}
+                          >
+                            {copiedHex === color && (
+                              <span className="text-[10px] font-semibold bg-brand-ink text-brand-bg px-1.5 py-0.5 rounded">
+                                Copied
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] font-mono text-brand-muted group-hover:text-brand-text mt-1.5 block">
+                            {color}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="text-xs font-medium uppercase tracking-wide text-brand-muted block mb-2.5">
+                      Fonts
+                    </span>
+                    <div className="p-3.5 rounded-md bg-brand-sunken border border-brand-border flex items-center gap-6">
+                      {fontNames(results.font).map((name) => (
+                        <div key={name} className="text-center">
+                          <p className="text-2xl font-display text-brand-text leading-none">Aa</p>
+                          <p className="text-[11px] text-brand-muted mt-1.5 max-w-[6rem] truncate">{name}</p>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
+
+              {resultTab === 'details' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div>
+                    <span className="text-xs font-medium uppercase tracking-wide text-brand-muted block mb-2.5">
+                      Brand tone of voice
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {toneChips(results.tone).map((chip) => (
+                        <span key={chip} className="tag bg-brand-sunken text-brand-text border border-brand-border">
+                          {chip}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {results.audience && (
+                    <div>
+                      <span className="text-xs font-medium uppercase tracking-wide text-brand-muted block mb-2.5">
+                        Target audience
+                      </span>
+                      <p className="text-sm text-brand-text bg-brand-sunken p-3.5 rounded-md border border-brand-border leading-relaxed">
+                        {results.audience}
+                      </p>
+                    </div>
+                  )}
+
+                  {results.mission && (
+                    <div className="md:col-span-2">
+                      <span className="text-xs font-medium uppercase tracking-wide text-brand-muted block mb-2.5">
+                        Business overview
+                      </span>
+                      <p className="text-sm text-brand-text bg-brand-sunken p-3.5 rounded-md border border-brand-border leading-relaxed">
+                        {results.mission}
+                      </p>
+                    </div>
+                  )}
+
+                  {results.valueProposition && (
+                    <div className="md:col-span-2">
+                      <span className="text-xs font-medium uppercase tracking-wide text-brand-muted block mb-2.5">
+                        Value proposition
+                      </span>
+                      <p className="text-sm text-brand-text bg-brand-sunken p-3.5 rounded-md border border-brand-border leading-relaxed">
+                        {results.valueProposition}
+                      </p>
+                    </div>
+                  )}
+
+                  {results.siteImages && results.siteImages.length > 0 && (
+                    <div className="md:col-span-2">
+                      <span className="text-xs font-medium uppercase tracking-wide text-brand-muted block mb-2.5">
+                        Existing imagery found on the site
+                      </span>
+                      <p className="text-xs text-brand-muted mb-2.5 leading-relaxed">
+                        AI Photoshoot reuses a real image from here instead of generating one whenever
+                        your request matches it.
+                      </p>
+                      <div className="grid grid-cols-4 sm:grid-cols-6 gap-2.5">
+                        {results.siteImages.slice(0, 12).map((img) => (
+                          <img
+                            key={img.url}
+                            src={img.url}
+                            alt={img.alt || 'Image found on the scanned site'}
+                            title={img.alt || undefined}
+                            className="w-full aspect-square object-cover rounded-md border border-brand-border bg-brand-sunken"
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
