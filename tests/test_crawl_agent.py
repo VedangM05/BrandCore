@@ -12,8 +12,18 @@ import os
 import unittest
 from unittest.mock import patch, MagicMock
 
+from bs4 import BeautifulSoup
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src', 'services'))
 import crawl_agent  # noqa: E402
+
+
+def _style_soup(css: str):
+    # extract_colors_from_css only trusts <style>/style="" content and the
+    # separately-fetched external stylesheet text - not raw page HTML (see
+    # its docstring) - so tests build a minimal soup around the CSS under
+    # test rather than passing a bare string.
+    return BeautifulSoup(f'<html><head><style>{css}</style></head></html>', 'html.parser')
 
 
 SITEMAP_INDEX_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
@@ -94,7 +104,7 @@ class TestOklchColorExtraction(unittest.TestCase):
         # a real, distinct, plausible color, not asserting an exact hex
         # value (the conversion math already has its own dedicated test).
         css = 'a { color: oklch(53% 0.2 25); }'
-        colors = crawl_agent.extract_colors_from_css(css)
+        colors = crawl_agent.extract_colors_from_css(_style_soup(css))
         self.assertEqual(len(colors), 1)
         r, g, b = crawl_agent._hex_to_rgb(colors[0])
         self.assertGreater(r, g)  # a red/orange hue should have R as the dominant channel
@@ -108,7 +118,7 @@ class TestOklchColorExtraction(unittest.TestCase):
           --oklch-ink-4: 0.3209 0.0204 233.83;
         }
         """
-        colors = crawl_agent.extract_colors_from_css(css)
+        colors = crawl_agent.extract_colors_from_css(_style_soup(css))
         self.assertGreaterEqual(len(colors), 3)
         # Real, previously-observed regression: the old hex/rgb-only scanner
         # found zero colors here and silently fell back to a generic palette.
@@ -119,6 +129,43 @@ class TestOklchColorExtraction(unittest.TestCase):
         # values every OKLCH implementation must get exactly right.
         self.assertEqual(crawl_agent._oklch_to_rgb(1.0, 0.0, 0.0), (255, 255, 255))
         self.assertEqual(crawl_agent._oklch_to_rgb(0.0, 0.0, 0.0), (0, 0, 0))
+
+
+class TestColorSourceIsScopedToStyles(unittest.TestCase):
+    """
+    Regression test: extract_colors_from_css used to regex the entire raw
+    page HTML, so a hex code repeated inside a <script> block (analytics
+    config, JSON-LD, an embedded widget snippet) could out-rank the site's
+    real CSS colors by sheer repetition and surface as a "brand color" that
+    was never actually rendered anywhere on the page.
+    """
+
+    def test_ignores_hex_colors_inside_script_tags(self):
+        html = """
+        <html><head>
+          <style>.btn { color: #3366ff; }</style>
+          <script>
+            var trackerConfig = {"pixel": "#ff00aa", "id": "x"};
+            // repeated many times, as a real minified analytics blob would be
+            for (var i = 0; i < 20; i++) { console.log("#ff00aa"); }
+          </script>
+        </head><body></body></html>
+        """
+        soup = BeautifulSoup(html, 'html.parser')
+        colors = crawl_agent.extract_colors_from_css(soup)
+        self.assertIn('#3366ff', colors)
+        self.assertNotIn('#ff00aa', colors)
+
+    def test_reads_inline_style_attributes(self):
+        html = '<html><body><div style="background-color: #22bb88;"></div></body></html>'
+        soup = BeautifulSoup(html, 'html.parser')
+        colors = crawl_agent.extract_colors_from_css(soup)
+        self.assertIn('#22bb88', colors)
+
+    def test_includes_external_stylesheet_text(self):
+        soup = BeautifulSoup('<html><head></head><body></body></html>', 'html.parser')
+        colors = crawl_agent.extract_colors_from_css(soup, external_css='a { color: #ab34ef; }')
+        self.assertIn('#ab34ef', colors)
 
 
 class TestDiscoverPagesToCrawl(unittest.TestCase):

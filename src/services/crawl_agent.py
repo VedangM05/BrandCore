@@ -279,7 +279,7 @@ def _fetch_external_stylesheets(soup, base_url, limit=2):
     return css_text
 
 
-def extract_colors_from_css(html_content):
+def extract_colors_from_css(soup, external_css=""):
     """
     Brand accent colors are far more reliably expressed in a site's actual
     CSS (buttons, links, headers, highlighted sections) than in one small
@@ -292,16 +292,29 @@ def extract_colors_from_css(html_content):
     find enough real signal (see main()).
 
     Scans every hex/rgb()/oklch() color literal in <style> blocks and
-    inline style="" attributes (already present in the crawled HTML - no
-    extra request needed), plus custom-property declarations holding a raw
-    "L C H" triple (`--oklch-blue: 0.5687 0.1602 254.08;`) - a real,
+    inline style="" attributes, plus the separately-fetched external
+    stylesheet text - deliberately NOT the raw page HTML. A prior version
+    regexed the whole html_content blob, which also matched hex/rgb-shaped
+    substrings inside <script> tags (JSON-LD, analytics/widget configs),
+    SVG icon fills, and meta theme-color - none of which are an actual
+    rendered brand color, and one could still out-rank the real palette by
+    sheer repetition. Also scans custom-property declarations holding a
+    raw "L C H" triple (`--oklch-blue: 0.5687 0.1602 254.08;`) - a real,
     common pattern for sites that reference the color via
     oklch(var(--x)) elsewhere rather than repeating the literal each time.
     Filters out near-white/near-black/low-saturation grays, and ranks
     what's left by frequency, skipping near-duplicate hues so the result
     is genuinely distinct accents, not four shades of the same blue.
     """
-    if not html_content:
+    if soup is None:
+        return []
+
+    style_text = "\n".join(tag.get_text() for tag in soup.find_all("style"))
+    inline_styles = "\n".join(
+        tag["style"] for tag in soup.find_all(style=True) if tag.get("style")
+    )
+    html_content = style_text + "\n" + inline_styles + "\n" + (external_css or "")
+    if not html_content.strip():
         return []
 
     hex_pattern = re.compile(r'#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b')
@@ -629,7 +642,7 @@ async def main():
             # minimal page with no inline styles and no external
             # stylesheets, for instance).
             external_css = _fetch_external_stylesheets(soup, url)
-            colors = extract_colors_from_css(html_content + external_css)
+            colors = extract_colors_from_css(soup, external_css)
             color_span.set_attribute("color_source", "css")
             if len(colors) < 2:
                 colors = extract_colors_from_image(logo_url)
