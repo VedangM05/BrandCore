@@ -498,9 +498,20 @@ export async function getCachedOrGenerateCopyAndArt(
   endpoint: string,
   feedback?: string
 ): Promise<CopyArtResult> {
-  const cacheNamespace = `copyart:${userId}:${validDnaId || 'unscoped'}`;
-  const cacheKey = `${(channel || 'general').toLowerCase()}::${prompt.trim().toLowerCase()}`;
-  const cacheSemanticPrompt = `${channel || 'general'} ${prompt}`;
+  // Real bug, found live: every channel (Twitter/X, LinkedIn, Email
+  // subject, Meta ad...) was returning identical copy. Channel WAS in the
+  // exact-match key (below), but the semantic-similarity layer (cache.
+  // service.ts's fuzzy match) scans every entry in a namespace regardless
+  // of key - and a channel name is one short word next to a much longer
+  // shared prompt, so "Twitter/X <prompt>" vs "LinkedIn <prompt>" scored
+  // well above the 0.85 similarity threshold and matched each other
+  // anyway. The engine already guarantees semantic matches never cross
+  // namespaces (see cache.service.ts's own per-namespace scan) - channel
+  // needs to be a hard partition via the namespace, not just a weak
+  // signal in the key/prompt that competes with everything else in it.
+  const cacheNamespace = `copyart:${userId}:${validDnaId || 'unscoped'}:${(channel || 'general').toLowerCase()}`;
+  const cacheKey = prompt.trim().toLowerCase();
+  const cacheSemanticPrompt = prompt;
 
   // A QA-refinement retry (feedback present) intentionally bypasses the
   // cache - it needs a genuinely different generation, not the same cached
@@ -538,14 +549,18 @@ export async function executeCreativePipeline(
     const { brandDna, validDnaId } = await resolveBrandDna(brandDnaId, userId);
 
     // Cache check-before-generate (spec: "Always cache before retrieving").
-    // Scoped per (user, brand) via the namespace, never globally - a
-    // near-duplicate prompt from a different user or a different brand must
-    // never return this user's cached copy. Channel is folded into the key
-    // because the same prompt can legitimately produce different copy per
-    // channel (see runCopywriterNode).
-    const cacheNamespace = `creative:${userId}:${validDnaId || 'unscoped'}`;
-    const cacheKey = `${(channel || 'general').toLowerCase()}::${prompt.trim().toLowerCase()}`;
-    const cacheSemanticPrompt = `${channel || 'general'} ${prompt}`;
+    // Scoped per (user, brand, channel) via the namespace, never globally -
+    // a near-duplicate prompt from a different user or a different brand
+    // must never return this user's cached copy. Channel is folded into
+    // the NAMESPACE, not just the key - see getCachedOrGenerateCopyAndArt
+    // above for the real bug this fixes (channel-as-a-key-prefix alone
+    // doesn't stop the semantic-similarity layer from matching across
+    // channels, since it scans every entry in a namespace regardless of
+    // key, and a channel name is one short word easily outweighed by the
+    // rest of an otherwise-identical prompt).
+    const cacheNamespace = `creative:${userId}:${validDnaId || 'unscoped'}:${(channel || 'general').toLowerCase()}`;
+    const cacheKey = prompt.trim().toLowerCase();
+    const cacheSemanticPrompt = prompt;
     const cached = await semanticCache.check<AttemptRecord>(cacheKey, cacheSemanticPrompt, cacheNamespace);
 
     if (cached.hit && cached.data) {

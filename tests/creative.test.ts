@@ -232,6 +232,53 @@ describe('Creative Generation Pipeline Integration Tests', () => {
       expect(otherUsageRows.rows.length).toBe(1);
       expect(otherUsageRows.rows[0].cache_hit).toBe(false);
     }, 20000);
+
+    it('does not cache-hit across two different channels for the same prompt', async () => {
+      // Regression test: channel used to only be a prefix inside the cache
+      // key/semantic prompt, not part of the cache namespace. The semantic
+      // similarity scan (cache.service.ts) ignores key content and matches
+      // anything above the threshold within a namespace, so "Twitter/X
+      // <prompt>" and "LinkedIn <prompt>" (same long shared prompt, one
+      // differing word) scored above SIMILARITY_THRESHOLD and cross-hit -
+      // every channel silently returned the first channel's copy.
+      const first = await request(app)
+        .post('/api/creative/generate')
+        .set('Authorization', authHeader)
+        .send({ brandDnaId, prompt: 'Announce our summer sale event', channel: 'Twitter/X' });
+      expect(first.status).toBe(200);
+
+      const second = await request(app)
+        .post('/api/creative/generate')
+        .set('Authorization', authHeader)
+        .send({ brandDnaId, prompt: 'Announce our summer sale event', channel: 'LinkedIn' });
+      expect(second.status).toBe(200);
+
+      const usageRows = await query(
+        `SELECT * FROM usage_logs WHERE user_id = $1 AND endpoint = '/api/creative/generate' ORDER BY created_at ASC`,
+        [testUserId]
+      );
+      expect(usageRows.rows.length).toBe(2);
+      // Both channels must be real generations - neither should reuse the
+      // other's cached copy just because the rest of the prompt matches.
+      expect(usageRows.rows[0].cache_hit).toBe(false);
+      expect(usageRows.rows[1].cache_hit).toBe(false);
+
+      // Same channel repeated afterwards must still correctly cache-hit -
+      // the fix must not have broken same-channel caching in the process.
+      const third = await request(app)
+        .post('/api/creative/generate')
+        .set('Authorization', authHeader)
+        .send({ brandDnaId, prompt: 'Announce our summer sale event', channel: 'Twitter/X' });
+      expect(third.status).toBe(200);
+      expect(third.body.copy.headline).toBe(first.body.copy.headline);
+
+      const finalUsageRows = await query(
+        `SELECT cache_hit FROM usage_logs WHERE user_id = $1 AND endpoint = '/api/creative/generate' ORDER BY created_at ASC`,
+        [testUserId]
+      );
+      expect(finalUsageRows.rows.length).toBe(3);
+      expect(finalUsageRows.rows[2].cache_hit).toBe(true);
+    }, 30000);
   });
 
   // forceScoreSequence exists purely to let the scenario tests above drive
