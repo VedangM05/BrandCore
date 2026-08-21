@@ -42,6 +42,15 @@ function saveStoredBrands(brands: Project[]): void {
   }
 }
 
+// Matches exactly the fallback id addScannedBrand generates below
+// (`brand-${Date.now()}`) when no real server id was available yet -
+// distinguishes "this was never a real synced project" from "a real
+// project genuinely went missing".
+const PROVISIONAL_ID_PATTERN = /^brand-\d+$/;
+function isProvisionalId(id: string): boolean {
+  return PROVISIONAL_ID_PATTERN.test(id);
+}
+
 export const ProjectProvider: React.FC<{
   children: React.ReactNode;
   initialProjects?: Project[];
@@ -101,6 +110,18 @@ export const ProjectProvider: React.FC<{
         const found = projects.find((p) => p.id === savedProjectId);
         if (found) {
           setActiveProject(found);
+        } else if (isProvisionalId(savedProjectId)) {
+          // A provisional id (ProjectContext's own client-side fallback,
+          // used when a scan finished without a real server id yet - see
+          // addScannedBrand below) not resolving later is expected, not a
+          // real problem: it was never actually persisted server-side, so
+          // there's nothing "missing or deleted" to warn about. Clean up
+          // the stale reference silently instead of surfacing an error
+          // banner for something the user never lost.
+          try {
+            localStorage.removeItem('activeProjectId');
+          } catch {}
+          setActiveProject(projects.length > 0 ? projects[0] : null);
         } else {
           setError(`Project profile "${savedProjectId}" is missing or deleted.`);
           if (projects.length > 0) {

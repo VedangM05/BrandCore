@@ -106,6 +106,14 @@ export const DashboardShell: React.FC<{ children?: React.ReactNode }> = ({ child
       setDnaResults(resultsPayload);
 
       addScannedBrand({
+        // Real bug, found live: this call omitted `id` even though
+        // data.id (the real crawl_results id) was right there in the
+        // response - every scan through this tab got a provisional
+        // brand-<timestamp> id (ProjectContext's addScannedBrand
+        // fallback) instead of the real backend one, so it could never
+        // be found again once the project list re-fetched, surfacing
+        // as "Project profile ... is missing or deleted" on next load.
+        id: data.id,
         url: websiteUrl,
         brandName: extractedBrandName,
         colors: extractedColors,
@@ -129,6 +137,10 @@ export const DashboardShell: React.FC<{ children?: React.ReactNode }> = ({ child
     setDnaResults(updated);
     if (websiteUrl) {
       addScannedBrand({
+        // Same real-id omission as handleDnaScan above - a correction
+        // saved via the edit form is still the same real brand, so it
+        // must resolve back to it, not spin up another provisional one.
+        id: updated.id,
         url: websiteUrl,
         brandName: updated.brandName,
         colors: updated.colors,

@@ -63,6 +63,25 @@ describe('ProjectContext Unit Tests', () => {
     expect(result.current.error).toContain('profile "p-999" is missing or deleted');
   });
 
+  test('should silently clean up a stale provisional id instead of showing an error', () => {
+    // Matches addScannedBrand's own fallback pattern (`brand-${Date.now()}`)
+    // - a scan that finished without a real server id yet. This is a
+    // known, expected condition (never actually persisted server-side),
+    // not something the user "lost", so it shouldn't surface the same
+    // "missing or deleted" warning a genuinely missing real project would.
+    localStorage.setItem('activeProjectId', 'brand-1784818972357');
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <ProjectProvider initialProjects={MOCK_PROJECTS}>{children}</ProjectProvider>
+    );
+
+    const { result } = renderHook(() => useProject(), { wrapper });
+
+    expect(result.current.activeProject).toEqual(MOCK_PROJECTS[0]);
+    expect(result.current.error).toBeNull();
+    expect(localStorage.getItem('activeProjectId')).toBeNull();
+  });
+
   test('should set error when trying to switch to non-existent project id', () => {
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <ProjectProvider initialProjects={MOCK_PROJECTS}>{children}</ProjectProvider>
