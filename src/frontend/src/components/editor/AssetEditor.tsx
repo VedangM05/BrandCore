@@ -41,6 +41,7 @@ export interface EditableTextLayer {
   fontSize: number;
   color: string;
   fontWeight: number;
+  fontFamily?: string;
   letterSpacing?: number;
   eyebrow?: boolean;
 }
@@ -114,6 +115,20 @@ interface AssetEditorProps {
 
 const DISPLAY_WIDTH = 380;
 const TEXT_COLORS = ['#FFFFFF', '#17160F', '#F4B942'];
+const DEFAULT_FONT_FAMILY = 'Helvetica, Arial, sans-serif';
+// Reuses the three families already loaded for the app's own UI chrome
+// (index.html's Google Fonts link) - no new font loading/network request
+// needed for the editor to offer real style variety. Server-side
+// compositing (composite.service.ts) only ever bakes the initial flattened
+// asset before the editor is opened; a save here re-exports via
+// stage.toDataURL(), which already captures whatever font Konva actually
+// rendered, so this is editor-only, no backend change needed.
+const FONT_OPTIONS: Array<{ label: string; value: string }> = [
+  { label: 'Sans', value: DEFAULT_FONT_FAMILY },
+  { label: 'Outfit', value: '"Outfit", Helvetica, Arial, sans-serif' },
+  { label: 'Serif', value: '"Instrument Serif", Georgia, serif' },
+  { label: 'Mono', value: '"JetBrains Mono", ui-monospace, monospace' },
+];
 // Small, honest set of natural-language color names for the quick-edit bar -
 // this is a keyword matcher, not an LLM, so it only understands names it's
 // explicitly told about (see handleQuickEdit).
@@ -296,6 +311,7 @@ export const AssetEditor: React.FC<AssetEditorProps> = ({
       fontSize: Math.round(frame.width * 0.045),
       color: '#FFFFFF',
       fontWeight: 700,
+      fontFamily: DEFAULT_FONT_FAMILY,
     };
     setTextLayers((prev) => [...prev, newLayer]);
     setSelectedId(id);
@@ -506,7 +522,7 @@ export const AssetEditor: React.FC<AssetEditorProps> = ({
                   y={layer.y}
                   fontSize={layer.fontSize}
                   fontStyle={String(layer.fontWeight)}
-                  fontFamily="Helvetica, Arial, sans-serif"
+                  fontFamily={layer.fontFamily || DEFAULT_FONT_FAMILY}
                   fill={layer.color}
                   letterSpacing={layer.letterSpacing || 0}
                   draggable
@@ -648,6 +664,29 @@ export const AssetEditor: React.FC<AssetEditorProps> = ({
                 onChange={(e) => updateLayer(selectedLayer.id, { fontSize: parseInt(e.target.value, 10) })}
                 className="w-full"
               />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-brand-muted block mb-1">Font</label>
+              <div className="flex gap-1.5 flex-wrap">
+                {FONT_OPTIONS.map((font) => {
+                  const isActive = (selectedLayer.fontFamily || DEFAULT_FONT_FAMILY) === font.value;
+                  return (
+                    <button
+                      key={font.value}
+                      type="button"
+                      onClick={() => updateLayer(selectedLayer.id, { fontFamily: font.value })}
+                      style={{ fontFamily: font.value }}
+                      className={`px-2.5 py-1.5 rounded-md border text-xs ${
+                        isActive
+                          ? 'bg-brand-ink text-brand-ink-text border-brand-ink'
+                          : 'border-brand-border text-brand-text hover:border-brand-border-strong'
+                      }`}
+                    >
+                      {font.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex gap-1.5">
