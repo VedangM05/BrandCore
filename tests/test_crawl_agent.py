@@ -168,6 +168,42 @@ class TestColorSourceIsScopedToStyles(unittest.TestCase):
         self.assertIn('#ab34ef', colors)
 
 
+class TestTailwindDefaultThemeTokensExcluded(unittest.TestCase):
+    """
+    Regression test, found live against a real Tailwind v4 site
+    (patronagerealtor.in): Tailwind v4 emits its ENTIRE default color
+    palette (~200 swatches across slate/red/orange/.../pink/rose, each
+    with shades 50-950) as CSS custom properties in every build,
+    regardless of whether the site actually uses red or pink anywhere.
+    That block alone can out-number a site's own handful of real brand
+    colors, so an unused shade of the framework's default red/pink scale
+    was winning the "most frequent declared color" ranking and showing up
+    as a fabricated "brand color" no element on the page ever rendered.
+    """
+
+    def test_excludes_tailwind_default_palette_tokens(self):
+        css = """
+        :root {
+          --color-red-50: oklch(97.1% .013 17.38);
+          --color-red-100: oklch(93.6% .032 17.717);
+          --color-red-200: oklch(88.5% .062 18.334);
+          --color-pink-200: oklch(86.4% .052 15.79);
+        }
+        .brand-cta { background-color: #133e45; }
+        """
+        soup = _style_soup(css)
+        colors = crawl_agent.extract_colors_from_css(soup)
+        self.assertEqual(colors, ['#133e45'])
+
+    def test_still_reads_a_non_default_named_oklch_custom_property(self):
+        # A site's own authored token (not shaped like Tailwind's default
+        # `<family>-<shade>` naming) must still be picked up.
+        css = ":root { --brand-primary: oklch(0.5687 0.1602 254.08); }"
+        soup = _style_soup(css)
+        colors = crawl_agent.extract_colors_from_css(soup)
+        self.assertEqual(len(colors), 1)
+
+
 class TestDiscoverPagesToCrawl(unittest.TestCase):
     def test_falls_back_to_internal_links_when_sitemap_unavailable(self):
         internal_links = [

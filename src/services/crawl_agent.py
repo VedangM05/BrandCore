@@ -279,6 +279,20 @@ def _fetch_external_stylesheets(soup, base_url, limit=2):
     return css_text
 
 
+# Tailwind v4's fixed set of default color family names - the exact
+# list it ships with `@theme` and emits unconditionally in every build.
+# A site's own brand tokens are essentially never named to collide with
+# this list *and* shaped like `<family>-<standard shade step>`.
+_TAILWIND_DEFAULT_COLOR_FAMILIES = (
+    'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|'
+    'emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose'
+)
+TAILWIND_DEFAULT_THEME_TOKEN_PATTERN = re.compile(
+    r'--color-(?:' + _TAILWIND_DEFAULT_COLOR_FAMILIES + r')-(?:50|100|150|200|300|400|500|600|700|800|900|950)\s*:\s*[^;]*;?',
+    re.IGNORECASE
+)
+
+
 def extract_colors_from_css(soup, external_css=""):
     """
     Brand accent colors are far more reliably expressed in a site's actual
@@ -305,6 +319,19 @@ def extract_colors_from_css(soup, external_css=""):
     Filters out near-white/near-black/low-saturation grays, and ranks
     what's left by frequency, skipping near-duplicate hues so the result
     is genuinely distinct accents, not four shades of the same blue.
+
+    Also strips Tailwind v4's default theme token block before scanning
+    (`--color-red-50` through `--color-red-950`, and the same for every
+    other stock family - slate/gray/.../pink/rose). Tailwind v4 always
+    emits its ENTIRE default palette as CSS custom properties in every
+    build, regardless of whether the site uses red or pink anywhere -
+    confirmed live: a real estate site whose actual design is
+    cream/sage/dark-teal still had its stylesheet's single most-repeated
+    color family be an unused shade of Tailwind's default red/pink scale,
+    because the framework declares ~200 stock swatches unconditionally
+    while the site's own brand colors are just a handful of literals
+    among them. These are framework defaults, not an authored brand
+    choice, so they're excluded outright rather than counted by frequency.
     """
     if soup is None:
         return []
@@ -316,6 +343,8 @@ def extract_colors_from_css(soup, external_css=""):
     html_content = style_text + "\n" + inline_styles + "\n" + (external_css or "")
     if not html_content.strip():
         return []
+
+    html_content = TAILWIND_DEFAULT_THEME_TOKEN_PATTERN.sub('', html_content)
 
     hex_pattern = re.compile(r'#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b')
     rgb_pattern = re.compile(r'rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})')
