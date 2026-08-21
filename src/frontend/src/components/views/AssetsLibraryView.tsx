@@ -281,7 +281,7 @@ export const AssetsLibraryView: React.FC = () => {
               onClick={() => setFilter(t.value)}
               className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
                 filter === t.value
-                  ? 'bg-brand-ink text-brand-bg'
+                  ? 'bg-brand-ink text-brand-ink-text'
                   : 'bg-brand-surface text-brand-muted border border-brand-border hover:text-brand-text hover:border-brand-border-strong'
               }`}
             >

@@ -27,6 +27,7 @@ module.exports = {
           'primary-soft-text': 'var(--color-primary-soft-text)',
           ink: 'var(--color-ink)',
           'ink-hover': 'var(--color-ink-hover)',
+          'ink-text': 'var(--color-ink-text)',
         },
         state: {
           success: 'var(--color-state-success)',

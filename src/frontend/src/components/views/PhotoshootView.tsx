@@ -162,7 +162,7 @@ export const PhotoshootView: React.FC = () => {
                       onClick={() => setStyle(theme)}
                       className={`px-4 py-2.5 rounded-md text-sm font-medium border transition-colors ${
                         style === theme
-                          ? 'bg-brand-ink text-brand-bg border-brand-ink'
+                          ? 'bg-brand-ink text-brand-ink-text border-brand-ink'
                           : 'bg-brand-surface text-brand-text border-brand-border hover:border-brand-border-strong'
                       }`}
                     >
@@ -184,7 +184,7 @@ export const PhotoshootView: React.FC = () => {
                       onClick={() => setAspect(option.id)}
                       className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${
                         aspect === option.id
-                          ? 'bg-brand-ink text-brand-bg border-brand-ink'
+                          ? 'bg-brand-ink text-brand-ink-text border-brand-ink'
                           : 'bg-brand-surface text-brand-muted border-brand-border hover:border-brand-border-strong'
                       }`}
                     >

@@ -545,7 +545,7 @@ export const AssetEditor: React.FC<AssetEditorProps> = ({
                 onClick={() => handleAspectChange(preset)}
                 className={`px-2.5 py-1 rounded text-[11px] font-medium border transition-colors ${
                   aspect === preset.key
-                    ? 'bg-brand-ink text-brand-bg border-brand-ink'
+                    ? 'bg-brand-ink text-brand-ink-text border-brand-ink'
                     : 'bg-brand-surface text-brand-muted border-brand-border hover:border-brand-border-strong'
                 }`}
               >
@@ -608,7 +608,7 @@ export const AssetEditor: React.FC<AssetEditorProps> = ({
                 onClick={() => setFilters(preset)}
                 className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
                   filters.label === preset.label
-                    ? 'bg-brand-ink text-brand-bg border-brand-ink'
+                    ? 'bg-brand-ink text-brand-ink-text border-brand-ink'
                     : 'bg-brand-surface text-brand-muted border-brand-border hover:border-brand-border-strong'
                 }`}
               >

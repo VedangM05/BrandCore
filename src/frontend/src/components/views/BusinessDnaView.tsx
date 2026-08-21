@@ -210,7 +210,7 @@ export const BusinessDnaView: React.FC<BusinessDnaViewProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
         <div className="lg:col-span-3 panel p-6 space-y-6">
           <div className="flex items-start gap-3.5">
-            <div className="w-7 h-7 rounded-md bg-brand-ink text-brand-bg flex items-center justify-center text-xs font-semibold shrink-0">
+            <div className="w-7 h-7 rounded-md bg-brand-ink text-brand-ink-text flex items-center justify-center text-xs font-semibold shrink-0">
               1
             </div>
             <div>
@@ -493,7 +493,7 @@ export const BusinessDnaView: React.FC<BusinessDnaViewProps> = ({
                             style={{ backgroundColor: color }}
                           >
                             {copiedHex === color && (
-                              <span className="text-[10px] font-semibold bg-brand-ink text-brand-bg px-1.5 py-0.5 rounded">
+                              <span className="text-[10px] font-semibold bg-brand-ink text-brand-ink-text px-1.5 py-0.5 rounded">
                                 Copied
                               </span>
                             )}

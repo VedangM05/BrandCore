@@ -86,7 +86,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
         </button>
       )}
       <div
-        className="w-8 h-8 rounded-md bg-brand-ink flex items-center justify-center text-brand-bg text-[11px] font-semibold shrink-0"
+        className="w-8 h-8 rounded-md bg-brand-ink flex items-center justify-center text-brand-ink-text text-[11px] font-semibold shrink-0"
         title={userEmail}
         aria-label={userEmail ? `Signed in as ${userEmail}` : 'User avatar'}
       >

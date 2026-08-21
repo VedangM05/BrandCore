@@ -23,8 +23,14 @@
   --color-primary-hover: #15281F;
   --color-primary-soft: #E7EEE9;
   --color-primary-soft-text: #1F3B33;
+  /* "ink" is a high-contrast inverse fill (primary buttons, avatar
+     circles, active chips) always paired with ink-text as its text/icon
+     color - never with --color-text or --color-bg directly, which change
+     meaning per theme. ink-text must always contrast against ink, not
+     against the page background. */
   --color-ink: #17160F;
   --color-ink-hover: #26241A;
+  --color-ink-text: #FBFAF7;
   --color-state-success: #EDF3EC;
   --color-state-success-text: #346538;
   --color-state-danger: #FDEBEC;
@@ -46,8 +52,16 @@
   --color-primary-hover: #7AB6A4;
   --color-primary-soft: #1E2E29;
   --color-primary-soft-text: #8FC3B2;
-  --color-ink: #0F0E0A;
-  --color-ink-hover: #1A1810;
+  /* Real bug, found live: ink stayed dark here (just an even darker
+     shade), and ink-text didn't exist yet - every "ink surface" (Sign in
+     button, avatar circles, active chips) paired a dark fill with
+     --color-bg as its text color, which is ALSO dark in this theme,
+     making the text invisible. ink must invert to stay the
+     highest-contrast fill against whatever the current background is -
+     light here, with dark text on it - not literally always dark. */
+  --color-ink: #F4F2EC;
+  --color-ink-hover: #E7E4DB;
+  --color-ink-text: #17160F;
   --color-state-success: #1B2E1D;
   --color-state-success-text: #7FBF85;
   --color-state-danger: #3A1D1C;
@@ -72,8 +86,9 @@
     --color-primary-hover: #7AB6A4;
     --color-primary-soft: #1E2E29;
     --color-primary-soft-text: #8FC3B2;
-    --color-ink: #0F0E0A;
-    --color-ink-hover: #1A1810;
+    --color-ink: #F4F2EC;
+    --color-ink-hover: #E7E4DB;
+    --color-ink-text: #17160F;
     --color-state-success: #1B2E1D;
     --color-state-success-text: #7FBF85;
     --color-state-danger: #3A1D1C;
@@ -132,7 +147,7 @@
     left: 1rem;
     top: 1rem;
     background: var(--color-ink);
-    color: var(--color-bg);
+    color: var(--color-ink-text);
     padding: 0.625rem 1rem;
     border-radius: 6px;
     font-size: 0.8125rem;
@@ -154,7 +169,7 @@
     justify-content: center;
     gap: 0.5rem;
     background-color: var(--color-ink);
-    color: var(--color-bg);
+    color: var(--color-ink-text);
     padding: 0.625rem 1.25rem;
     border-radius: 6px;
     font-size: 0.875rem;

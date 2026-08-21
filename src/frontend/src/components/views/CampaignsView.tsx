@@ -358,7 +358,7 @@ export const CampaignsView: React.FC = () => {
                       disabled={isGenerating || !prompt.trim()}
                       className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors disabled:opacity-40 ${
                         selectedChannel === channel
-                          ? 'bg-brand-ink text-brand-bg border-brand-ink'
+                          ? 'bg-brand-ink text-brand-ink-text border-brand-ink'
                           : 'bg-brand-surface text-brand-muted border-brand-border hover:border-brand-border-strong hover:text-brand-text'
                       }`}
                     >
@@ -382,7 +382,7 @@ export const CampaignsView: React.FC = () => {
                       onClick={() => setAspect(option.id)}
                       className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${
                         aspect === option.id
-                          ? 'bg-brand-ink text-brand-bg border-brand-ink'
+                          ? 'bg-brand-ink text-brand-ink-text border-brand-ink'
                           : 'bg-brand-surface text-brand-muted border-brand-border hover:border-brand-border-strong hover:text-brand-text'
                       }`}
                     >

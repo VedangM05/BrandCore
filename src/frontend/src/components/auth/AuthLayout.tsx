@@ -31,7 +31,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ title, subtitle, childre
     <div className="min-h-dvh bg-brand-bg flex">
       <a href="#auth-form" className="skip-link">Skip to form</a>
 
-      <aside className="hidden lg:flex lg:w-[44%] relative bg-brand-ink text-brand-bg flex-col justify-between p-12 overflow-hidden">
+      <aside className="hidden lg:flex lg:w-[44%] relative bg-brand-ink text-brand-ink-text flex-col justify-between p-12 overflow-hidden">
         <div
           className="pointer-events-none absolute inset-0 opacity-40"
           style={{
